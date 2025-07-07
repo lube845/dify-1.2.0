@@ -32,6 +32,13 @@ http_access deny all
 ################################## Proxy Server ################################
 http_port ${HTTP_PORT}
 coredump_dir ${COREDUMP_DIR}
+
+# --- DNS 优化配置 ---
+ignore_unknown_nameservers on       # 忽略不可达DNS服务器
+dns_timeout 1 seconds              # DNS查询超时(默认30s)
+dns_retransmit_interval 1 seconds  # DNS重试间隔(默认5s)
+dns_defnames off                   # 禁止自动补全域名
+
 refresh_pattern ^ftp:		1440	20%	10080
 refresh_pattern ^gopher:	1440	0%	1440
 refresh_pattern -i (/cgi-bin/|\?) 0	0%	0
