@@ -6,6 +6,7 @@ export let apiPrefix = ''
 export let publicApiPrefix = ''
 export let marketplaceApiPrefix = ''
 export let marketplaceUrlPrefix = ''
+export let qianxunUrl = process.env.NEXT_PUBLIC_QIANXUN_URL
 
 // NEXT_PUBLIC_API_PREFIX=/console/api NEXT_PUBLIC_PUBLIC_API_PREFIX=/api npm run start
 if (process.env.NEXT_PUBLIC_API_PREFIX && process.env.NEXT_PUBLIC_PUBLIC_API_PREFIX) {
@@ -28,6 +29,8 @@ else {
   publicApiPrefix = 'http://localhost:5001/api' // avoid browser private mode api cross origin
   marketplaceApiPrefix = 'http://localhost:5002/api'
 }
+if (globalThis.document?.body?.getAttribute('data-qianxun-url'))
+  qianxunUrl = globalThis.document.body.getAttribute('data-qianxun-url') || ''
 
 if (process.env.NEXT_PUBLIC_MARKETPLACE_API_PREFIX && process.env.NEXT_PUBLIC_MARKETPLACE_URL_PREFIX) {
   marketplaceApiPrefix = process.env.NEXT_PUBLIC_MARKETPLACE_API_PREFIX
@@ -293,12 +296,3 @@ else if (globalThis.document?.body?.getAttribute('data-public-loop-node-max-coun
   loopNodeMaxCount = Number.parseInt(globalThis.document.body.getAttribute('data-public-loop-node-max-count') as string)
 
 export const LOOP_NODE_MAX_COUNT = loopNodeMaxCount
-
-let maxIterationsNum = 5
-
-if (process.env.NEXT_PUBLIC_MAX_ITERATIONS_NUM && process.env.NEXT_PUBLIC_MAX_ITERATIONS_NUM !== '')
-  maxIterationsNum = Number.parseInt(process.env.NEXT_PUBLIC_MAX_ITERATIONS_NUM)
-else if (globalThis.document?.body?.getAttribute('data-public-max-iterations-num') && globalThis.document.body.getAttribute('data-public-max-iterations-num') !== '')
-  maxIterationsNum = Number.parseInt(globalThis.document.body.getAttribute('data-public-max-iterations-num') as string)
-
-export const MAX_ITERATIONS_NUM = maxIterationsNum

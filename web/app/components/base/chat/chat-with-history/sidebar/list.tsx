@@ -8,7 +8,8 @@ type ListProps = {
   list: ConversationItem[]
   onOperate: (type: string, item: ConversationItem) => void
   onChangeConversation: (conversationId: string) => void
-  currentConversationId: string
+  currentConversationId: string,
+  hideQianxun?: () => void
 }
 const List: FC<ListProps> = ({
   isPin,
@@ -17,6 +18,7 @@ const List: FC<ListProps> = ({
   onOperate,
   onChangeConversation,
   currentConversationId,
+  hideQianxun,
 }) => {
   return (
     <div className='space-y-0.5'>
@@ -29,7 +31,10 @@ const List: FC<ListProps> = ({
           isPin={isPin}
           item={item}
           onOperate={onOperate}
-          onChangeConversation={onChangeConversation}
+          onChangeConversation={() => {
+            hideQianxun?.()
+            onChangeConversation(item.id)
+          }}
           currentConversationId={currentConversationId}
         />
       ))}

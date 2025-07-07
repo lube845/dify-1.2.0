@@ -1,12 +1,12 @@
 # base image
-FROM node:22-alpine3.21 AS base
+FROM node:20-alpine3.20 AS base
 LABEL maintainer="takatost@gmail.com"
 
 # if you located in China, you can use aliyun mirror to speed up
 # RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
 RUN apk add --no-cache tzdata
-RUN npm install -g pnpm@10.8.0
+RUN npm install -g pnpm@9.12.2
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
@@ -20,9 +20,9 @@ COPY package.json .
 COPY pnpm-lock.yaml .
 
 # if you located in China, you can use taobao registry to speed up
-# RUN pnpm install --frozen-lockfile --registry https://registry.npmmirror.com/
+RUN pnpm install --frozen-lockfile --registry https://registry.npmmirror.com/
 
-RUN pnpm install --frozen-lockfile
+# RUN pnpm install --frozen-lockfile
 
 # build resources
 FROM base AS builder
@@ -40,10 +40,11 @@ FROM base AS production
 ENV NODE_ENV=production
 ENV EDITION=SELF_HOSTED
 ENV DEPLOY_ENV=PRODUCTION
-ENV CONSOLE_API_URL=http://127.0.0.1:5001
-ENV APP_API_URL=http://127.0.0.1:5001
-ENV MARKETPLACE_API_URL=https://marketplace.dify.ai
-ENV MARKETPLACE_URL=https://marketplace.dify.ai
+ENV CONSOLE_API_URL=http://172.20.6.231:81
+ENV APP_API_URL=http://172.20.6.231:81
+ENV MARKETPLACE_API_URL=http://172.20.6.231:81
+ENV MARKETPLACE_URL=http://172.20.6.231:81
+ENV QIANQUN_URL="https://www.amardata.com/qianxun/#/talk?appKey=app2506161509144972efa6b9007000&showTools=0&showHelp=0"
 ENV PORT=3000
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PM2_INSTANCES=2

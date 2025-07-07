@@ -21,10 +21,12 @@ import type { ConversationItem } from '@/models/share'
 import cn from '@/utils/classnames'
 
 type Props = {
-  isPanel?: boolean
+  isPanel?: boolean,
+  openQianxun?: () => void,
+  hideQianxun?: () => void,
 }
 
-const Sidebar = ({ isPanel }: Props) => {
+const Sidebar = ({ isPanel, openQianxun, hideQianxun }: Props) => {
   const { t } = useTranslation()
   const {
     appData,
@@ -94,19 +96,32 @@ const Sidebar = ({ isPanel }: Props) => {
           />
         </div>
         <div className={cn('system-md-semibold grow truncate text-text-secondary')}>{appData?.site.title}</div>
-        {!isMobile && isSidebarCollapsed && (
-          <ActionButton size='l' onClick={() => handleSidebarCollapse(false)}>
-            <RiExpandRightLine className='h-[18px] w-[18px]' />
-          </ActionButton>
-        )}
-        {!isMobile && !isSidebarCollapsed && (
-          <ActionButton size='l' onClick={() => handleSidebarCollapse(true)}>
-            <RiLayoutLeft2Line className='h-[18px] w-[18px]' />
-          </ActionButton>
-        )}
+        {
+          appData?.app_id !== '4dae1006-2f1a-4bb4-b785-9e5031c41fb1' ? (
+            <>
+              {!isMobile && isSidebarCollapsed && (
+                <ActionButton size='l' onClick={() => handleSidebarCollapse(false)}>
+                  <RiExpandRightLine className='h-[18px] w-[18px]' />
+                </ActionButton>
+              )}
+              {!isMobile && !isSidebarCollapsed && (
+                <ActionButton size='l' onClick={() => handleSidebarCollapse(true)}>
+                  <RiLayoutLeft2Line className='h-[18px] w-[18px]' />
+                </ActionButton>
+              )}
+            </>
+          ) : (<span></span>)
+        }
       </div>
       <div className='shrink-0 px-3 py-4'>
-        <Button variant='secondary-accent' disabled={isResponding} className='w-full justify-center' onClick={handleNewConversation}>
+        <Button style={{ marginBottom: '10px' }} variant='secondary-accent' disabled={isResponding} className='w-full justify-center' onClick={openQianxun}>
+          <RiEditBoxLine className='mr-1 h-4 w-4' />
+          {'新建贵小智金融分析对话'}
+        </Button>
+        <Button variant='secondary-accent' disabled={isResponding} className='w-full justify-center' onClick={() => {
+          hideQianxun?.()
+          handleNewConversation()
+        }}>
           <RiEditBoxLine className='mr-1 h-4 w-4' />
           {t('share.chat.newChat')}
         </Button>
@@ -122,6 +137,7 @@ const Sidebar = ({ isPanel }: Props) => {
               onChangeConversation={handleChangeConversation}
               onOperate={handleOperate}
               currentConversationId={currentConversationId}
+              hideQianxun={hideQianxun}
             />
           </div>
         )}
@@ -132,6 +148,7 @@ const Sidebar = ({ isPanel }: Props) => {
             onChangeConversation={handleChangeConversation}
             onOperate={handleOperate}
             currentConversationId={currentConversationId}
+            hideQianxun={hideQianxun}
           />
         )}
       </div>

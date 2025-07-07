@@ -20,6 +20,7 @@ import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
 import { checkOrSetAccessToken } from '@/app/components/share/utils'
 import AppUnavailable from '@/app/components/base/app-unavailable'
 import cn from '@/utils/classnames'
+import { qianxunUrl } from '@/config'
 
 type ChatWithHistoryProps = {
   className?: string
@@ -53,6 +54,17 @@ const ChatWithHistory: FC<ChatWithHistoryProps> = ({
     }
   }, [site, customConfig, themeBuilder])
 
+  // 千寻
+  const [showQianxun, setShowQianxun] = useState(false)
+  const [iframeUrl, setIframeUrl] = useState<string>(qianxunUrl || '')
+  const openQianxun = () => {
+    setShowQianxun(true)
+    setIframeUrl('about:blank')
+    setTimeout(() => {
+      setIframeUrl(qianxunUrl || '')
+    }, 100)
+  }
+
   if (appInfoLoading) {
     return (
       <Loading type='app' />
@@ -76,35 +88,49 @@ const ChatWithHistory: FC<ChatWithHistoryProps> = ({
           'flex w-[236px] flex-col p-1 pr-0 transition-all duration-200 ease-in-out',
           isSidebarCollapsed && 'w-0 overflow-hidden !p-0',
         )}>
-          <Sidebar />
+          <Sidebar openQianxun={openQianxun} hideQianxun={() => {
+            setShowQianxun(false)
+          }} />
         </div>
       )}
       {isMobile && (
         <HeaderInMobile />
       )}
-      <div className={cn('relative grow p-2', isMobile && 'h-[calc(100%_-_56px)] p-0')}>
-        {isSidebarCollapsed && (
-          <div
-            className={cn(
-              'absolute top-0 z-20 flex h-full w-[256px] flex-col p-2 transition-all duration-500 ease-in-out',
-              showSidePanel ? 'left-0' : 'left-[-248px]',
+      {
+        <div className={cn('relative grow p-2', isMobile && 'h-[calc(100%_-_56px)] p-0')}>
+          {
+            showQianxun && (
+              <div style={{ border: 'none', width: 'calc(100% - 16px)', height: 'calc(100% - 16px)', position: 'absolute', left: '7px', top: '8px', zIndex: 999, borderRadius: '12px', overflow: 'hidden' }} >
+                <iframe className={'a110'} style={{ border: 'none', width: '100%', height: '100%' }} src={iframeUrl}></iframe>
+                <div onClick={() => {
+                  setShowQianxun(false)
+                }} style={{ position: 'absolute', right: '20px', top: '16px', zIndex: 999, cursor: 'pointer' }}>关闭</div>
+              </div>
+            )
+          }
+          {isSidebarCollapsed && (
+            <div
+              className={cn(
+                'absolute top-0 z-20 flex h-full w-[256px] flex-col p-2 transition-all duration-500 ease-in-out',
+                showSidePanel ? 'left-0' : 'left-[-248px]',
+              )}
+              onMouseEnter={() => setShowSidePanel(true)}
+              onMouseLeave={() => setShowSidePanel(false)}
+            >
+              <Sidebar isPanel />
+            </div>
+          )}
+          <div className={cn('flex h-full flex-col overflow-hidden border-[0,5px] border-components-panel-border-subtle bg-chatbot-bg', isMobile ? 'rounded-t-2xl' : 'rounded-2xl')}>
+            {!isMobile && <Header />}
+            {appChatListDataLoading && (
+              <Loading type='app' />
             )}
-            onMouseEnter={() => setShowSidePanel(true)}
-            onMouseLeave={() => setShowSidePanel(false)}
-          >
-            <Sidebar isPanel />
+            {!appChatListDataLoading && (
+              <ChatWrapper key={chatShouldReloadKey} />
+            )}
           </div>
-        )}
-        <div className={cn('flex h-full flex-col overflow-hidden border-[0,5px] border-components-panel-border-subtle bg-chatbot-bg', isMobile ? 'rounded-t-2xl' : 'rounded-2xl')}>
-          {!isMobile && <Header />}
-          {appChatListDataLoading && (
-            <Loading type='app' />
-          )}
-          {!appChatListDataLoading && (
-            <ChatWrapper key={chatShouldReloadKey} />
-          )}
         </div>
-      </div>
+      }
     </div>
   )
 }
@@ -157,8 +183,6 @@ const ChatWithHistoryWrap: FC<ChatWithHistoryWrapProps> = ({
     setClearChatList,
     isResponding,
     setIsResponding,
-    currentConversationInputs,
-    setCurrentConversationInputs,
   } = useChatWithHistory(installedAppInfo)
 
   return (
@@ -200,8 +224,6 @@ const ChatWithHistoryWrap: FC<ChatWithHistoryWrapProps> = ({
       setClearChatList,
       isResponding,
       setIsResponding,
-      currentConversationInputs,
-      setCurrentConversationInputs,
     }}>
       <ChatWithHistory className={className} />
     </ChatWithHistoryContext.Provider>
