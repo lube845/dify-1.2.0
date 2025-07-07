@@ -169,7 +169,7 @@ const Chat: FC<ChatProps> = ({
       // container padding bottom
       const resizeContainerObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
-          const { blockSize } = entry.borderBoxSize[0]
+          const blockSize = entry.borderBoxSize[0].blockSize * 2
           chatContainerRef.current!.style.paddingBottom = `${blockSize}px`
           handleScrollToBottom()
         }
@@ -227,11 +227,11 @@ const Chat: FC<ChatProps> = ({
       onFeedback={onFeedback}
     >
       <div className='relative h-full'>
+        {chatNode}
         <div
           ref={chatContainerRef}
           className={cn('relative h-full overflow-y-auto overflow-x-hidden', chatContainerClassName)}
         >
-          {chatNode}
           <div
             ref={chatContainerInnerRef}
             className={cn('w-full', !noSpacing && 'px-8', chatContainerInnerClassName)}
