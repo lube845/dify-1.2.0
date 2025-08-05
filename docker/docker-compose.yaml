@@ -497,6 +497,8 @@ services:
     volumes:
       # Mount the storage directory to the container, for storing user files.
       - ./volumes/app/storage:/app/api/storage
+      - ./volumes/permission_ip:/app/permission_ip
+      - /home/gzyh/lube/python_project/dify-1.2.0/api/services/app_generate_service.py:/app/api/services/app_generate_service.py
     networks:
       - ssrf_proxy_network
       - default
@@ -524,6 +526,8 @@ services:
     volumes:
       # Mount the storage directory to the container, for storing user files.
       - ./volumes/app/storage:/app/api/storage
+      - ./volumes/permission_ip:/app/permission_ip
+      - /home/gzyh/lube/python_project/dify-1.2.0/api/services/app_generate_service.py:/app/api/services/app_generate_service.py
     networks:
       - ssrf_proxy_network
       - default
@@ -531,7 +535,7 @@ services:
   # Frontend web application.
   web:
     build:
-      context: /home/lube/dify-1.2.0/web  # 指向你的本地web目录
+      context: /home/gzyh/lube/python project/dify-1.2.0/web  # 指向你的本地web目录
       dockerfile: Dockerfile
     restart: always
     environment:

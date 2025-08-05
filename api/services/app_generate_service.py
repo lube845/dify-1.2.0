@@ -1,5 +1,9 @@
 from collections.abc import Generator, Mapping
 from typing import Any, Union
+from flask import request
+import logging
+import json
+import datetime
 
 from openai._exceptions import RateLimitError
 
@@ -18,9 +22,31 @@ from services.billing_service import BillingService
 from services.errors.llm import InvokeRateLimitError
 from services.workflow_service import WorkflowService
 
+logger = logging.getLogger(__name__)
 
 class AppGenerateService:
     system_rate_limiter = RateLimiter("app_daily_rate_limiter", dify_config.APP_DAILY_RATE_LIMIT, 86400)
+
+    @staticmethod
+    def check_ip_proxy(app_id, user_ip):
+        # appid need to be whitelisted
+        # store appid's proxy file, key:appid, value:file path
+        with open("/app/permission_ip/appid_proxy.json", "r", encoding="utf-8") as f:
+            appid_list = json.load(f)
+        user_whitelist_path = appid_list.get(app_id, "")
+        today_str = datetime.datetime.now().strftime('%Y%m%d')
+        if not user_whitelist_path:
+            return True
+        else:
+            with open(f"{user_whitelist_path}", "r", encoding="utf-8") as f:
+                user_whitelist = json.load(f)
+            user_proxy = user_whitelist.get(user_ip, "")
+            if not user_proxy:
+                raise ValueError(f"您暂无访问权限，请联系管理员") 
+            elif user_proxy >= today_str:
+                return True
+            else:
+                raise ValueError(f"您权限已过期，请联系管理员") 
 
     @classmethod
     def generate(
@@ -40,6 +66,15 @@ class AppGenerateService:
         :param streaming: streaming
         :return:
         """
+        
+        # check user ip proxy
+        user_ip = AppGenerateService._get_client_ip()
+        app_id = app_model.id
+        logger.info(f"check ip proxy for app {app_id}")
+        logger.info(f"user ip: {user_ip}")
+        AppGenerateService.check_ip_proxy(app_id, user_ip)  
+
+
         # system level rate limiter
         if dify_config.BILLING_ENABLED:
             # check if it's free plan
@@ -218,3 +253,24 @@ class AppGenerateService:
                 raise ValueError("Workflow not published")
 
         return workflow
+
+    @staticmethod
+    def _get_client_ip() -> str | NotImplementedError:
+        """
+        get client real IP
+        """
+        try:
+            # 1. 首先检查 X-Forwarded-For
+            if request.headers.getlist("X-Forwarded-For"):
+                return request.headers.getlist("X-Forwarded-For")[0]
+                
+            # 2. 检查 X-Real-IP
+            if request.headers.get("X-Real-IP"):
+                return request.headers.get("X-Real-IP")
+            
+            # 3. 使用 remote_addr
+            return request.remote_addr
+            
+        except Exception as e:
+            logger.error(f"###Failed to get client IP: {str(e)}###")
+            return None
