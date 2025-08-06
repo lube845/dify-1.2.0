@@ -3,6 +3,7 @@ import logging
 from collections.abc import Generator
 from datetime import UTC, datetime
 from typing import Optional, Union, cast
+from flask import request
 
 from core.app.app_config.entities import EasyUIBasedAppConfig, EasyUIBasedAppModelConfigFrom
 from core.app.apps.base_app_generator import BaseAppGenerator
@@ -100,6 +101,26 @@ class MessageBasedAppGenerator(BaseAppGenerator):
 
         return app_model_config
 
+    def get_client_ip(self):
+        """
+        get client real IP
+        """
+        try:
+            # 1. 首先检查 X-Forwarded-For
+            if request.headers.getlist("X-Forwarded-For"):
+                return request.headers.getlist("X-Forwarded-For")[0]
+                
+            # 2. 检查 X-Real-IP
+            if request.headers.get("X-Real-IP"):
+                return request.headers.get("X-Real-IP")
+            
+            # 3. 使用 remote_addr
+            return request.remote_addr
+            
+        except Exception as e:
+            logger.error(f"###Failed to get client IP: {str(e)}###")
+            return None
+
     def _init_generate_records(
         self,
         application_generate_entity: Union[
@@ -117,6 +138,9 @@ class MessageBasedAppGenerator(BaseAppGenerator):
         :return:
         """
         app_config: EasyUIBasedAppConfig = cast(EasyUIBasedAppConfig, application_generate_entity.app_config)
+
+        # get conversation ip
+        ip_address = self.get_client_ip()
 
         # get from source
         end_user_id = None
@@ -173,6 +197,7 @@ class MessageBasedAppGenerator(BaseAppGenerator):
                 from_source=from_source,
                 from_end_user_id=end_user_id,
                 from_account_id=account_id,
+                ip_address=ip_address,
             )
 
             db.session.add(conversation)
@@ -206,6 +231,7 @@ class MessageBasedAppGenerator(BaseAppGenerator):
             from_source=from_source,
             from_end_user_id=end_user_id,
             from_account_id=account_id,
+            ip_address=ip_address,
         )
 
         db.session.add(message)

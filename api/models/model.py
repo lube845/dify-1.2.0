@@ -641,6 +641,7 @@ class Conversation(db.Model):  # type: ignore[name-defined]
     )
 
     is_deleted = db.Column(db.Boolean, nullable=False, server_default=db.text("false"))
+    ip_address = db.Column(db.String(255), nullable=True)  # add ip address
 
     @property
     def inputs(self):
@@ -909,6 +910,7 @@ class Message(db.Model):  # type: ignore[name-defined]
     updated_at = db.Column(db.DateTime, nullable=False, server_default=func.current_timestamp())
     agent_based = db.Column(db.Boolean, nullable=False, server_default=db.text("false"))
     workflow_run_id = db.Column(StringUUID)
+    ip_address = db.Column(db.String(255), nullable=True)  # add ip address
 
     @property
     def inputs(self):
