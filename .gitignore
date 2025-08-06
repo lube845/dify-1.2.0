@@ -179,6 +179,7 @@ docker/volumes/couchbase/*
 docker/volumes/oceanbase/*
 docker/volumes/plugin_daemon/*
 !docker/volumes/oceanbase/init.d
+docker/volumes/permission_ip/*
 
 docker/nginx/conf.d/default.conf
 docker/nginx/ssl/*
