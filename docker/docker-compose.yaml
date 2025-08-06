@@ -475,7 +475,7 @@ x-shared-env: &shared-api-worker-env
 services:
   # API service
   api:
-    image: langgenius/dify-api:1.2.0
+    image: dify-api-lube:20250806
     restart: always
     environment:
       # Use the shared environment variables.
@@ -497,8 +497,12 @@ services:
     volumes:
       # Mount the storage directory to the container, for storing user files.
       - ./volumes/app/storage:/app/api/storage
+      # add ip and ip permission 
       - ./volumes/permission_ip:/app/permission_ip
-      - /home/gzyh/lube/python_project/dify-1.2.0/api/services/app_generate_service.py:/app/api/services/app_generate_service.py
+      # - /home/gzyh/lube/python_project/dify-1.2.0/api/services/app_generate_service.py:/app/api/services/app_generate_service.py
+      # - /home/gzyh/lube/python_project/dify-1.2.0/api/migrations/versions/2025_05_20_add_ip_address.py:/app/api/migrations/versions/2025_05_20_add_ip_address.py
+      # - /home/gzyh/lube/python_project/dify-1.2.0/api/models/model.py:/app/api/models/model.py
+      # - /home/gzyh/lube/python_project/dify-1.2.0/api/core/app/apps/message_based_app_generator.py:/app/api/core/app/apps/message_based_app_generator.py
     networks:
       - ssrf_proxy_network
       - default
@@ -506,7 +510,7 @@ services:
   # worker service
   # The Celery worker for processing the queue.
   worker:
-    image: langgenius/dify-api:1.2.0
+    image: dify-api-lube:20250806
     restart: always
     environment:
       # Use the shared environment variables.
@@ -526,8 +530,12 @@ services:
     volumes:
       # Mount the storage directory to the container, for storing user files.
       - ./volumes/app/storage:/app/api/storage
+      # add ip and ip permission 
       - ./volumes/permission_ip:/app/permission_ip
-      - /home/gzyh/lube/python_project/dify-1.2.0/api/services/app_generate_service.py:/app/api/services/app_generate_service.py
+      # - /home/gzyh/lube/python_project/dify-1.2.0/api/services/app_generate_service.py:/app/api/services/app_generate_service.py
+      # - /home/gzyh/lube/python_project/dify-1.2.0/api/migrations/versions/2025_05_20_add_ip_address.py:/app/api/migrations/versions/2025_05_20_add_ip_address.py
+      # - /home/gzyh/lube/python_project/dify-1.2.0/api/models/model.py:/app/api/models/model.py
+      # - /home/gzyh/lube/python_project/dify-1.2.0/api/core/app/apps/message_based_app_generator.py:/app/api/core/app/apps/message_based_app_generator.py
     networks:
       - ssrf_proxy_network
       - default

@@ -70,6 +70,9 @@ class AppGenerateService:
         # check user ip proxy
         user_ip = AppGenerateService._get_client_ip()
         app_id = app_model.id
+        logging.info("-" * 10)
+        logger.info(f"app id: {app_id}")
+        logger.info(f"updated at: {app_model.updated_at}")
         logger.info(f"check ip proxy for app {app_id}")
         logger.info(f"user ip: {user_ip}")
         AppGenerateService.check_ip_proxy(app_id, user_ip)  
