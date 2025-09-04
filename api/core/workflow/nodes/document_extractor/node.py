@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import tempfile
+import subprocess
 from collections.abc import Mapping, Sequence
 from typing import Any, cast
 
@@ -111,7 +112,7 @@ def _extract_text_by_mime_type(*, file_content: bytes, mime_type: str) -> str:
         case "application/pdf":
             return _extract_text_from_pdf(file_content)
         case "application/msword":
-            return _extract_text_from_doc(file_content)
+            return extract_text_from_doc_libreoffice(file_content)
         case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
             return _extract_text_from_docx(file_content)
         case "text/csv":
@@ -148,7 +149,7 @@ def _extract_text_by_file_extension(*, file_content: bytes, file_extension: str)
         case ".pdf":
             return _extract_text_from_pdf(file_content)
         case ".doc":
-            return _extract_text_from_doc(file_content)
+            return extract_text_from_doc_libreoffice(file_content)
         case ".docx":
             return _extract_text_from_docx(file_content)
         case ".csv":
@@ -207,6 +208,48 @@ def _extract_text_from_pdf(file_content: bytes) -> str:
     except Exception as e:
         raise TextExtractionError(f"Failed to extract text from PDF: {str(e)}") from e
 
+def extract_text_from_doc_libreoffice(file_content: bytes) -> str:
+    """
+    Extract text from a DOC file by converting it to DOCX first.
+    """
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 创建临时 .doc 文件
+            doc_path = os.path.join(temp_dir, "input.doc")
+            with open(doc_path, "wb") as doc_file:
+                doc_file.write(file_content)
+            
+            # 使用 LibreOffice 转换为 docx
+            subprocess.run([
+                'libreoffice', '--headless', '--convert-to', 'docx',
+                '--outdir', temp_dir, doc_path
+            ], check=True, capture_output=True, timeout=30)
+            
+            # 获取转换后的文件路径
+            docx_path = os.path.join(temp_dir, "input.docx")
+            
+            # 检查转换是否成功
+            if not os.path.exists(docx_path):
+                raise TextExtractionError("Failed to convert DOC to DOCX: output file not found")
+            
+            # 读取转换后的 docx 文件内容
+            with open(docx_path, "rb") as docx_file:
+                docx_content = docx_file.read()
+            
+            # 使用现有的 docx 解析函数
+            return _extract_text_from_docx(docx_content)
+            
+    except subprocess.CalledProcessError as e:
+        stderr_output = e.stderr.decode('utf-8') if e.stderr else "No error details"
+        raise TextExtractionError(
+            f"LibreOffice conversion failed: {stderr_output}"
+        ) from e
+    except subprocess.TimeoutExpired:
+        raise TextExtractionError(
+            "LibreOffice conversion timed out after 30 seconds"
+        ) from None
+    except Exception as e:
+        raise TextExtractionError(f"Failed to extract text from DOC: {str(e)}") from e
 
 def _extract_text_from_doc(file_content: bytes) -> str:
     """

@@ -133,10 +133,10 @@ def _build_from_local_file(
     row = db.session.scalar(stmt)
     if row is None:
         raise ValueError("Invalid upload file")
-
+    
     file_type = _standardize_file_type(extension="." + row.extension, mime_type=row.mime_type)
     if file_type.value != mapping.get("type", "custom"):
-        raise ValueError("Detected file type does not match the specified type. Please verify the file.")
+        raise ValueError(f"Detected file type does not match the specified type. Please verify the file. extension:{row.extension}, file_type:{file_type.value}, mapping_res:{mapping.get('type', 'custom')}")
 
     return File(
         id=mapping.get("id"),
