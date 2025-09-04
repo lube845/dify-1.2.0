@@ -506,6 +506,8 @@ services:
     networks:
       - ssrf_proxy_network
       - default
+    # ports:  # 测试用
+    #   - "5001:5001"
 
   # worker service
   # The Celery worker for processing the queue.
@@ -543,7 +545,7 @@ services:
   # Frontend web application.
   web:
     build:
-      context: /home/gzyh/lube/python project/dify-1.2.0/web  # 指向你的本地web目录
+      context: /home/gzyh/lube/python_project/dify-1.2.0/web  # 指向你的本地web目录
       dockerfile: Dockerfile
     restart: always
     environment:
@@ -565,6 +567,7 @@ services:
       ENABLE_WEBSITE_JINAREADER: ${ENABLE_WEBSITE_JINAREADER:-true}
       ENABLE_WEBSITE_FIRECRAWL: ${ENABLE_WEBSITE_FIRECRAWL:-true}
       ENABLE_WEBSITE_WATERCRAWL: ${ENABLE_WEBSITE_WATERCRAWL:-true}
+
   # The postgres database.
   db:
     image: postgres:15-alpine

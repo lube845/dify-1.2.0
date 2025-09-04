@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Message3Fill } from '@/app/components/base/icons/src/public/other'
 import Button from '@/app/components/base/button'
@@ -6,6 +6,7 @@ import Divider from '@/app/components/base/divider'
 import InputsFormContent from '@/app/components/base/chat/chat-with-history/inputs-form/content'
 import { useChatWithHistoryContext } from '../context'
 import cn from '@/utils/classnames'
+import { InputVarType } from '@/app/components/workflow/types'
 
 type Props = {
   collapsed: boolean
@@ -22,7 +23,22 @@ const InputsFormNode = ({
     currentConversationId,
     handleStartChat,
     themeBuilder,
+    inputsForms,
   } = useChatWithHistoryContext()
+
+  // 是否存在可渲染的表单项（排除布尔型下拉：它们在聊天输入框中用 Toggle 展示）
+  const hasRenderableForm = useMemo(() => {
+    const isBooleanSelect = (form: any) => {
+      return form?.type === InputVarType.select && form.options && form.options.length === 2 && (
+        (form.options.includes('true') && form.options.includes('false')) ||
+        (form.options.includes('True') && form.options.includes('False'))
+      )
+    }
+    return inputsForms.some(form => !isBooleanSelect(form))
+  }, [inputsForms])
+
+  if (!hasRenderableForm)
+    return null
 
   return (
     <div className={cn(

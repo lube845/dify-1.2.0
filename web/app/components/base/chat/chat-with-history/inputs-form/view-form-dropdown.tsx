@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   RiChatSettingsLine,
@@ -7,10 +7,26 @@ import { PortalToFollowElem, PortalToFollowElemContent, PortalToFollowElemTrigge
 import ActionButton, { ActionButtonState } from '@/app/components/base/action-button'
 import { Message3Fill } from '@/app/components/base/icons/src/public/other'
 import InputsFormContent from '@/app/components/base/chat/chat-with-history/inputs-form/content'
+import { useChatWithHistoryContext } from '../context'
+import { InputVarType } from '@/app/components/workflow/types'
 
 const ViewFormDropdown = () => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const { inputsForms } = useChatWithHistoryContext()
+
+  const hasRenderableForm = useMemo(() => {
+    const isBooleanSelect = (form: any) => {
+      return form?.type === InputVarType.select && form.options && form.options.length === 2 && (
+        (form.options.includes('true') && form.options.includes('false')) ||
+        (form.options.includes('True') && form.options.includes('False'))
+      )
+    }
+    return inputsForms.some(form => !isBooleanSelect(form))
+  }, [inputsForms])
+
+  if (!hasRenderableForm)
+    return null
 
   return (
     <PortalToFollowElem

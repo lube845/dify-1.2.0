@@ -6,7 +6,7 @@
     "node": ">=18.18.0"
   },
   "scripts": {
-    "dev": "cross-env NODE_OPTIONS='--inspect' next dev",
+    "dev": "cross-env NODE_OPTIONS='--inspect' next dev -p 5091",
     "build": "next build",
     "start": "cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public && cross-env PORT=$npm_config_port HOSTNAME=$npm_config_host node .next/standalone/server.js",
     "lint": "pnpm eslint --cache --cache-location node_modules/.cache/eslint/.eslint-cache",
@@ -212,5 +212,6 @@
     "@types/react": "19.0.11",
     "@types/react-dom": "19.0.4",
     "@storybook/test": "8.5.0"
-  }
+  },
+  "proxy": "http://localhost:5001"
 }

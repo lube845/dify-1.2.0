@@ -41,7 +41,9 @@ type ChatInputAreaProps = {
   theme?: Theme | null
   isResponding?: boolean
   disabled?: boolean
+  onInputChange?: (variable: string, value: any) => void
 }
+
 const ChatInputArea = ({
   showFeatureBar,
   showFileUpload,
@@ -55,6 +57,7 @@ const ChatInputArea = ({
   theme,
   isResponding,
   disabled,
+  onInputChange,
 }: ChatInputAreaProps) => {
   const { t } = useTranslation()
   const { notify } = useToastContext()
@@ -81,6 +84,37 @@ const ChatInputArea = ({
   const historyRef = useRef([''])
   const [currentIndex, setCurrentIndex] = useState(-1)
   const isComposingRef = useRef(false)
+
+  // 检查是否为布尔类型的下拉选择
+  const isBooleanSelect = (form: any) => {
+    return form.options && form.options.length === 2 && 
+           ((form.options.includes('true') && form.options.includes('false')) || 
+            (form.options.includes('True') && form.options.includes('False')))
+  }
+
+  // 获取需要在输入框中显示的ToggleButton
+  const toggleButtonForms = inputsForm.filter(form => 
+    form.type === 'select' && isBooleanSelect(form)
+  )
+
+  // 处理ToggleButton点击事件
+  const handleToggleButtonClick = useCallback((variable: string, currentValue: any) => {
+    // 确保状态切换逻辑正确
+    const isCurrentlyActive = currentValue === 'true' || currentValue === true || currentValue === 'True'
+    const newValue = isCurrentlyActive ? 'false' : 'true'
+    
+    // 调用父组件的输入变化处理函数
+    if (onInputChange) {
+      onInputChange(variable, newValue)
+    }
+  }, [onInputChange])
+
+  // 获取ToggleButton的激活状态
+  const getToggleButtonActiveState = useCallback((variable: string) => {
+    const value = inputs?.[variable]
+    return value === 'true' || value === true || value === 'True'
+  }, [inputs])
+
   const handleSend = () => {
     if (isResponding) {
       notify({ type: 'info', message: t('appDebug.errorMessage.waitForResponse') })
@@ -104,20 +138,19 @@ const ChatInputArea = ({
       }
     }
   }
+
   const handleCompositionStart = () => {
-    // e: React.CompositionEvent<HTMLTextAreaElement>
     isComposingRef.current = true
   }
+
   const handleCompositionEnd = () => {
-    // safari or some browsers will trigger compositionend before keydown.
-    // delay 50ms for safari.
     setTimeout(() => {
       isComposingRef.current = false
     }, 50)
   }
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-      // if isComposing, exit
       if (isComposingRef.current) return
       e.preventDefault()
       setQuery(query.replace(/\n$/, ''))
@@ -126,20 +159,17 @@ const ChatInputArea = ({
       handleSend()
     }
     else if (e.key === 'ArrowUp' && !e.shiftKey && !e.nativeEvent.isComposing && e.metaKey) {
-      // When the cmd + up key is pressed, output the previous element
       if (currentIndex > 0) {
         setCurrentIndex(currentIndex - 1)
         setQuery(historyRef.current[currentIndex - 1])
       }
     }
     else if (e.key === 'ArrowDown' && !e.shiftKey && !e.nativeEvent.isComposing && e.metaKey) {
-      // When the cmd + down key is pressed, output the next element
       if (currentIndex < historyRef.current.length - 1) {
         setCurrentIndex(currentIndex + 1)
         setQuery(historyRef.current[currentIndex + 1])
       }
       else if (currentIndex === historyRef.current.length - 1) {
-        // If it is the last element, clear the input box
         setCurrentIndex(historyRef.current.length)
         setQuery('')
       }
@@ -176,6 +206,8 @@ const ChatInputArea = ({
       >
         <div className='relative max-h-[158px] overflow-y-auto overflow-x-hidden px-[9px] pt-[9px]'>
           <FileListInChatInput fileConfig={visionConfig!} />
+          
+          {/* 输入框区域 - 单独一行，不包含任何按钮 */}
           <div
             ref={wrapperRef}
             className='flex items-center justify-between'
@@ -211,24 +243,50 @@ const ChatInputArea = ({
                 onDrop={handleDropFile}
               />
             </div>
-            {
-              !isMultipleLine && operation
-            }
           </div>
-          {
-            showVoiceInput && (
-              <VoiceInput
-                onCancel={() => setShowVoiceInput(false)}
-                onConverted={text => setQuery(text)}
-              />
-            )
-          }
+          
+          {/* 底部操作栏 - ToggleButton 在左侧，所有操作按钮在右侧 */}
+          <div className='flex items-center justify-between mt-2 pt-2'>
+            {/* 左侧 ToggleButton 区域 */}
+            <div className='flex items-center gap-2'>
+              {toggleButtonForms.map(form => {
+                const isActive = getToggleButtonActiveState(form.variable)
+                return (
+                  <div 
+                    key={form.variable} 
+                    className={cn(
+                      'inline-flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer select-none transition-all duration-200 hover:shadow-sm whitespace-nowrap',
+                      isActive 
+                        ? 'bg-primary-50 border-primary-200 text-primary-700' 
+                        : 'bg-components-panel-bg border-components-panel-border text-text-secondary hover:border-primary-200 hover:bg-primary-25'
+                    )}
+                    onClick={() => handleToggleButtonClick(form.variable, inputs?.[form.variable])}
+                  >
+                    <span className={cn(
+                      'text-sm font-medium transition-colors duration-200',
+                      isActive ? 'text-primary-700' : 'text-text-secondary'
+                    )}>
+                      {form.label}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+            
+            {/* 右侧操作按钮区域 - 始终显示 */}
+            <div className='shrink-0'>
+              {operation}
+            </div>
+          </div>
+          
+          {/* 语音输入 */}
+          {showVoiceInput && (
+            <VoiceInput
+              onCancel={() => setShowVoiceInput(false)}
+              onConverted={text => setQuery(text)}
+            />
+          )}
         </div>
-        {
-          isMultipleLine && (
-            <div className='px-[9px]'>{operation}</div>
-          )
-        }
       </div>
       {showFeatureBar && <FeatureBar showFileUpload={showFileUpload} disabled={featureBarDisabled} onFeatureBarClick={onFeatureBarClick} />}
     </>

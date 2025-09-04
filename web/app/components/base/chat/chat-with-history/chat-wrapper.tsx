@@ -46,6 +46,8 @@ const ChatWrapper = () => {
     clearChatList,
     setClearChatList,
     setIsResponding,
+    setCurrentConversationInputs,
+    handleNewConversationInputsChange,
   } = useChatWithHistoryContext()
   const appConfig = useMemo(() => {
     const config = appParams || {}
@@ -178,6 +180,19 @@ const ChatWrapper = () => {
     }
   }, [inputsForms.length, isMobile, currentConversationId, collapsed])
 
+  // 统一处理 ChatInputArea 内的输入变更（用于布尔型开关）
+  const handleInputsChange = useCallback((variable: string, value: any) => {
+    const updatedCurrent = {
+      ...currentConversationInputs,
+      [variable]: value,
+    }
+    setCurrentConversationInputs(updatedCurrent)
+    handleNewConversationInputsChange({
+      ...newConversationInputsRef.current,
+      [variable]: value,
+    })
+  }, [currentConversationInputs, setCurrentConversationInputs, handleNewConversationInputsChange, newConversationInputsRef])
+
   const welcome = useMemo(() => {
     const welcomeMessage = chatList.find(item => item.isOpeningStatement)
     if (respondingState)
@@ -249,6 +264,7 @@ const ChatWrapper = () => {
         onSend={doSend}
         inputs={currentConversationId ? currentConversationInputs as any : newConversationInputs}
         inputsForm={inputsForms}
+        onInputChange={handleInputsChange}
         onRegenerate={doRegenerate}
         onStopResponding={handleStop}
         chatNode={
