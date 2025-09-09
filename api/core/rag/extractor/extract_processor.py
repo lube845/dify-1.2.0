@@ -126,7 +126,7 @@ class ExtractProcessor:
                         extractor = HtmlExtractor(file_path)
                     elif file_extension == ".docx":
                         extractor = WordExtractor(file_path, upload_file.tenant_id, upload_file.created_by)
-                    elif file_extension == ".doc":
+                    elif file_extension == ".wps":
                         # extractor = UnstructuredWordExtractor(file_path, unstructured_api_url, unstructured_api_key)
                         with tempfile.TemporaryDirectory() as temp_dir:
                             # 转换为docx
@@ -157,6 +157,52 @@ class ExtractProcessor:
                         extractor = UnstructuredXmlExtractor(file_path, unstructured_api_url, unstructured_api_key)
                     elif file_extension == ".epub":
                         extractor = UnstructuredEpubExtractor(file_path, unstructured_api_url, unstructured_api_key)
+                        
+                    elif file_extension == ".wps":
+                        with tempfile.TemporaryDirectory() as temp_dir:
+                            # 转换为docx
+                            subprocess.run([
+                                'libreoffice', '--headless', '--convert-to', 'docx',
+                                '--outdir', temp_dir, file_path
+                            ], check=True, capture_output=True)
+                            
+                            # 获取转换后的文件
+                            base_name = os.path.splitext(os.path.basename(file_path))[0]
+                            docx_path = os.path.join(temp_dir, f"{base_name}.docx")
+                            
+                            if os.path.exists(docx_path):
+                                extractor = WordExtractor(docx_path, upload_file.tenant_id, upload_file.created_by)
+
+                    elif file_extension == ".et":
+                        with tempfile.TemporaryDirectory() as temp_dir:
+                            # 转换为docx
+                            subprocess.run([
+                                'libreoffice', '--headless', '--convert-to', 'xlsx',
+                                '--outdir', temp_dir, file_path
+                            ], check=True, capture_output=True)
+                            
+                            # 获取转换后的文件
+                            base_name = os.path.splitext(os.path.basename(file_path))[0]
+                            excel_path = os.path.join(temp_dir, f"{base_name}.xlsx")
+                            
+                            if os.path.exists(excel_path):
+                                extractor = ExcelExtractor(file_path)
+
+                    elif file_extension == ".doc":
+                        with tempfile.TemporaryDirectory() as temp_dir:
+                            # 转换为docx
+                            subprocess.run([
+                                'libreoffice', '--headless', '--convert-to', 'docx',
+                                '--outdir', temp_dir, file_path
+                            ], check=True, capture_output=True)
+                            
+                            # 获取转换后的文件
+                            base_name = os.path.splitext(os.path.basename(file_path))[0]
+                            docx_path = os.path.join(temp_dir, f"{base_name}.docx")
+                            
+                            if os.path.exists(docx_path):
+                                extractor = WordExtractor(docx_path, upload_file.tenant_id, upload_file.created_by)
+                                return extractor.extract()
                     else:
                         # txt
                         extractor = TextExtractor(file_path, autodetect_encoding=True)
@@ -175,6 +221,36 @@ class ExtractProcessor:
                         extractor = CSVExtractor(file_path, autodetect_encoding=True)
                     elif file_extension == ".epub":
                         extractor = UnstructuredEpubExtractor(file_path)
+
+                    elif file_extension == ".wps":
+                        with tempfile.TemporaryDirectory() as temp_dir:
+                            # 转换为docx
+                            subprocess.run([
+                                'libreoffice', '--headless', '--convert-to', 'docx',
+                                '--outdir', temp_dir, file_path
+                            ], check=True, capture_output=True)
+                            
+                            # 获取转换后的文件
+                            base_name = os.path.splitext(os.path.basename(file_path))[0]
+                            docx_path = os.path.join(temp_dir, f"{base_name}.docx")
+                            
+                            if os.path.exists(docx_path):
+                                extractor = WordExtractor(docx_path, upload_file.tenant_id, upload_file.created_by)
+
+                    elif file_extension == ".et":
+                        with tempfile.TemporaryDirectory() as temp_dir:
+                            # 转换为docx
+                            subprocess.run([
+                                'libreoffice', '--headless', '--convert-to', 'xlsx',
+                                '--outdir', temp_dir, file_path
+                            ], check=True, capture_output=True)
+                            
+                            # 获取转换后的文件
+                            base_name = os.path.splitext(os.path.basename(file_path))[0]
+                            excel_path = os.path.join(temp_dir, f"{base_name}.xlsx")
+                            
+                            if os.path.exists(excel_path):
+                                extractor = ExcelExtractor(file_path)
 
                     elif file_extension == ".doc":
                         with tempfile.TemporaryDirectory() as temp_dir:

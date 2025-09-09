@@ -166,6 +166,10 @@ def _extract_text_by_file_extension(*, file_content: bytes, file_extension: str)
             return _extract_text_from_eml(file_content)
         case ".msg":
             return _extract_text_from_msg(file_content)
+        case ".wps":
+            return extract_text_from_wps_libreoffice(file_content)
+        case ".et":
+            return extract_text_from_et_libreoffice(file_content)
         case _:
             raise UnsupportedFileTypeError(f"Unsupported Extension Type: {file_extension}")
 
@@ -250,6 +254,94 @@ def extract_text_from_doc_libreoffice(file_content: bytes) -> str:
         ) from None
     except Exception as e:
         raise TextExtractionError(f"Failed to extract text from DOC: {str(e)}") from e
+
+def extract_text_from_wps_libreoffice(file_content: bytes) -> str:
+    """
+    Extract text from a WPS file by converting it to DOCX first.
+    """
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 创建临时 .wps 文件
+            wps_path = os.path.join(temp_dir, "input.wps")
+            with open(wps_path, "wb") as wps_file:
+                wps_file.write(file_content)
+            
+            # 使用 LibreOffice 转换为 docx
+            subprocess.run([
+                'libreoffice', '--headless', '--convert-to', 'docx',
+                '--outdir', temp_dir, wps_path
+            ], check=True, capture_output=True, timeout=30)
+            
+            # 获取转换后的文件路径
+            docx_path = os.path.join(temp_dir, "input.docx")
+            
+            # 检查转换是否成功
+            if not os.path.exists(docx_path):
+                raise TextExtractionError("Failed to convert WPS to DOCX: output file not found")
+            
+            # 读取转换后的 docx 文件内容
+            with open(docx_path, "rb") as docx_file:
+                docx_content = docx_file.read()
+            
+            # 使用现有的 docx 解析函数
+            return _extract_text_from_docx(docx_content)
+            
+    except subprocess.CalledProcessError as e:
+        stderr_output = e.stderr.decode('utf-8') if e.stderr else "No error details"
+        raise TextExtractionError(
+            f"LibreOffice conversion failed: {stderr_output}"
+        ) from e
+    except subprocess.TimeoutExpired:
+        raise TextExtractionError(
+            "LibreOffice conversion timed out after 30 seconds"
+        ) from None
+    except Exception as e:
+        raise TextExtractionError(f"Failed to extract text from WPS: {str(e)}") from e
+
+
+def extract_text_from_et_libreoffice(file_content: bytes) -> str:
+    """
+    Extract text from a ET file by converting it to DOCX first.
+    """
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 创建临时 .et 文件
+            et_path = os.path.join(temp_dir, "input.et")
+            with open(et_path, "wb") as et_file:
+                et_file.write(file_content)
+            
+            # 使用 LibreOffice 转换为 docx
+            subprocess.run([
+                'libreoffice', '--headless', '--convert-to', 'xlsx',
+                '--outdir', temp_dir, et_path
+            ], check=True, capture_output=True, timeout=30)
+            
+            # 获取转换后的文件路径
+            excel_path = os.path.join(temp_dir, "input.xlsx")
+            
+            # 检查转换是否成功
+            if not os.path.exists(excel_path):
+                raise TextExtractionError("Failed to convert ET to XLSX: output file not found")
+            
+            # 读取转换后的 xlsx 文件内容
+            with open(excel_path, "rb") as excel_file:
+                excel_content = excel_file.read()
+            
+            # 使用现有的 exce; 解析函数
+            return _extract_text_from_excel(excel_content)
+            
+    except subprocess.CalledProcessError as e:
+        stderr_output = e.stderr.decode('utf-8') if e.stderr else "No error details"
+        raise TextExtractionError(
+            f"LibreOffice conversion failed: {stderr_output}"
+        ) from e
+    except subprocess.TimeoutExpired:
+        raise TextExtractionError(
+            "LibreOffice conversion timed out after 30 seconds"
+        ) from None
+    except Exception as e:
+        raise TextExtractionError(f"Failed to extract text from WPS: {str(e)}") from e
+
 
 def _extract_text_from_doc(file_content: bytes) -> str:
     """
