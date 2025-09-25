@@ -502,8 +502,8 @@ services:
     networks:
       - ssrf_proxy_network
       - default
-    # ports:  # 测试用,当测试前端代码时，打开
-    #   - "5001:5001"
+    ports:  # 测试用,当测试前端代码时，打开
+      - "5001:5001"
 
   # worker service
   # The Celery worker for processing the queue.

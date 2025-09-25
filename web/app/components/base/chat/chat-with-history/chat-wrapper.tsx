@@ -49,6 +49,7 @@ const ChatWrapper = () => {
     setCurrentConversationInputs,
     handleNewConversationInputsChange,
   } = useChatWithHistoryContext()
+  
   const appConfig = useMemo(() => {
     const config = appParams || {}
 
@@ -62,6 +63,7 @@ const ChatWrapper = () => {
       opening_statement: currentConversationId ? currentConversationItem?.introduction : (config as any).opening_statement,
     } as ChatConfig
   }, [appParams, currentConversationItem?.introduction, currentConversationId])
+  
   const {
     chatList,
     setTargetMessageId,
@@ -80,7 +82,22 @@ const ChatWrapper = () => {
     clearChatList,
     setClearChatList,
   )
+  
   const inputsFormValue = currentConversationId ? currentConversationInputs : newConversationInputsRef?.current
+  
+  // 检查是否为布尔型下拉选择
+  const isBooleanSelect = useCallback((form: any) => {
+    return form?.type === InputVarType.select && form.options && form.options.length === 2 && (
+      (form.options.includes('true') && form.options.includes('false')) ||
+      (form.options.includes('True') && form.options.includes('False'))
+    )
+  }, [])
+  
+  // 检查是否存在非布尔型字段
+  const hasNonBooleanForm = useMemo(() => {
+    return inputsForms.some(form => !isBooleanSelect(form))
+  }, [inputsForms, isBooleanSelect])
+  
   const inputDisabled = useMemo(() => {
     let hasEmptyInput = ''
     let fileIsUploading = false
@@ -167,9 +184,12 @@ const ChatWrapper = () => {
 
   const [collapsed, setCollapsed] = useState(!!currentConversationId)
 
+  // 修改后的 chatNode 逻辑：只有存在非布尔型字段时才显示表单
   const chatNode = useMemo(() => {
-    if (!inputsForms.length)
+    // 如果没有表单字段，或者所有字段都是布尔型（ToggleButton），则不显示表单
+    if (!inputsForms.length || !hasNonBooleanForm)
       return null
+    
     if (isMobile) {
       if (!currentConversationId)
         return <InputsForm collapsed={collapsed} setCollapsed={setCollapsed} />
@@ -178,7 +198,7 @@ const ChatWrapper = () => {
     else {
       return <InputsForm collapsed={collapsed} setCollapsed={setCollapsed} />
     }
-  }, [inputsForms.length, isMobile, currentConversationId, collapsed])
+  }, [inputsForms.length, hasNonBooleanForm, isMobile, currentConversationId, collapsed])
 
   // 统一处理 ChatInputArea 内的输入变更（用于布尔型开关）
   const handleInputsChange = useCallback((variable: string, value: any) => {
@@ -193,6 +213,7 @@ const ChatWrapper = () => {
     })
   }, [currentConversationInputs, setCurrentConversationInputs, handleNewConversationInputsChange, newConversationInputsRef])
 
+  // 修改 welcome 逻辑：考虑 hasNonBooleanForm
   const welcome = useMemo(() => {
     const welcomeMessage = chatList.find(item => item.isOpeningStatement)
     if (respondingState)
@@ -201,7 +222,8 @@ const ChatWrapper = () => {
       return null
     if (!welcomeMessage)
       return null
-    if (!collapsed && inputsForms.length > 0)
+    // 只有当表单展开且存在非布尔型字段时，才隐藏 welcome 消息
+    if (!collapsed && hasNonBooleanForm)
       return null
     if (welcomeMessage.suggestedQuestions && welcomeMessage.suggestedQuestions?.length > 0) {
       return (
@@ -238,7 +260,7 @@ const ChatWrapper = () => {
         </div>
       </div>
     )
-  }, [appData?.site.icon, appData?.site.icon_background, appData?.site.icon_type, appData?.site.icon_url, chatList, collapsed, currentConversationId, inputsForms.length, respondingState])
+  }, [appData?.site.icon, appData?.site.icon_background, appData?.site.icon_type, appData?.site.icon_url, chatList, collapsed, currentConversationId, hasNonBooleanForm, respondingState])
 
   const answerIcon = (appData?.site && appData.site.use_icon_as_answer_icon)
     ? <AnswerIcon

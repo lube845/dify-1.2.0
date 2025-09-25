@@ -26,18 +26,21 @@ const InputsFormNode = ({
     inputsForms,
   } = useChatWithHistoryContext()
 
-  // 是否存在可渲染的表单项（排除布尔型下拉：它们在聊天输入框中用 Toggle 展示）
-  const hasRenderableForm = useMemo(() => {
-    const isBooleanSelect = (form: any) => {
-      return form?.type === InputVarType.select && form.options && form.options.length === 2 && (
-        (form.options.includes('true') && form.options.includes('false')) ||
-        (form.options.includes('True') && form.options.includes('False'))
-      )
-    }
+  // 检查是否为布尔型下拉选择（现在会在聊天输入框中用 Toggle 展示）
+  const isBooleanSelect = (form: any) => {
+    return form?.type === InputVarType.select && form.options && form.options.length === 2 && (
+      (form.options.includes('true') && form.options.includes('false')) ||
+      (form.options.includes('True') && form.options.includes('False'))
+    )
+  }
+
+  // 是否存在需要在表单中渲染的字段（排除所有布尔型字段）
+  const hasNonBooleanForm = useMemo(() => {
     return inputsForms.some(form => !isBooleanSelect(form))
   }, [inputsForms])
 
-  if (!hasRenderableForm)
+  // 如果所有字段都是布尔型（ToggleButton），则不渲染整个表单组件
+  if (!hasNonBooleanForm)
     return null
 
   return (
