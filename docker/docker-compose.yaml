@@ -471,11 +471,12 @@ x-shared-env: &shared-api-worker-env
   OTEL_METRIC_EXPORT_INTERVAL: ${OTEL_METRIC_EXPORT_INTERVAL:-60000}
   OTEL_BATCH_EXPORT_TIMEOUT: ${OTEL_BATCH_EXPORT_TIMEOUT:-10000}
   OTEL_METRIC_EXPORT_TIMEOUT: ${OTEL_METRIC_EXPORT_TIMEOUT:-30000}
+  ALLOWED_REMOTE_IPS: ${ALLOWED_REMOTE_IPS:-}
 
 services:
   # API service
   api:
-    image: dify-api-lube:20250909
+    image: dify-api-lube:20251009
     restart: always
     environment:
       # Use the shared environment variables.
@@ -499,16 +500,19 @@ services:
       - ./volumes/app/storage:/app/api/storage
       # add ip and ip permission 
       - ./volumes/permission_ip:/app/permission_ip
+      - ./volumes/allowed_remote_ips.json:/app/allowed_remote_ips.json
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     networks:
       - ssrf_proxy_network
       - default
-    ports:  # 测试用,当测试前端代码时，打开
-      - "5001:5001"
+    # ports:  # 测试用,当测试前端代码时，打开
+    #   - "5001:5001"
 
   # worker service
   # The Celery worker for processing the queue.
   worker:
-    image: dify-api-lube:20250909
+    image: dify-api-lube:20251009
     restart: always
     environment:
       # Use the shared environment variables.
@@ -530,19 +534,19 @@ services:
       - ./volumes/app/storage:/app/api/storage
       # add ip and ip permission 
       - ./volumes/permission_ip:/app/permission_ip
-      # - /home/gzyh/lube/python_project/dify-1.2.0/api/services/app_generate_service.py:/app/api/services/app_generate_service.py
-      # - /home/gzyh/lube/python_project/dify-1.2.0/api/migrations/versions/2025_05_20_add_ip_address.py:/app/api/migrations/versions/2025_05_20_add_ip_address.py
-      # - /home/gzyh/lube/python_project/dify-1.2.0/api/models/model.py:/app/api/models/model.py
-      # - /home/gzyh/lube/python_project/dify-1.2.0/api/core/app/apps/message_based_app_generator.py:/app/api/core/app/apps/message_based_app_generator.py
+      - ./volumes/allowed_remote_ips.json:/app/allowed_remote_ips.json
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     networks:
       - ssrf_proxy_network
       - default
 
   # Frontend web application.
   web:
-    build:
-      context: /home/gzyh/lube/python_project/dify-1.2.0/web  # 指向你的本地web目录
-      dockerfile: Dockerfile
+    image: docker-web:latest
+    # build:
+    #   context: /home/gzyh/lube/python_project/dify-1.2.0/web  # 指向本地web目录
+    #   dockerfile: Dockerfile
     restart: always
     environment:
       CONSOLE_API_URL: ${CONSOLE_API_URL:-}
@@ -563,6 +567,9 @@ services:
       ENABLE_WEBSITE_JINAREADER: ${ENABLE_WEBSITE_JINAREADER:-true}
       ENABLE_WEBSITE_FIRECRAWL: ${ENABLE_WEBSITE_FIRECRAWL:-true}
       ENABLE_WEBSITE_WATERCRAWL: ${ENABLE_WEBSITE_WATERCRAWL:-true}
+    volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
 
   # The postgres database.
   db:
@@ -581,6 +588,8 @@ services:
                -c 'effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-4096MB}'
     volumes:
       - ./volumes/db/data:/var/lib/postgresql/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     healthcheck:
       test: [ 'CMD', 'pg_isready', '-h', 'db', '-U', '${PGUSER:-postgres}', '-d', '${POSTGRES_DB:-dify}' ]
       interval: 1s
@@ -596,6 +605,8 @@ services:
     volumes:
       # Mount the redis data directory to the container.
       - ./volumes/redis/data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     # Set the redis password when startup redis server.
     command: redis-server --requirepass ${REDIS_PASSWORD:-difyai123456}
     healthcheck:
@@ -619,6 +630,8 @@ services:
     volumes:
       - ./volumes/sandbox/dependencies:/dependencies
       - ./volumes/sandbox/conf:/conf
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     healthcheck:
       test: [ 'CMD', 'curl', '-f', 'http://localhost:8194/health' ]
     networks:
@@ -666,6 +679,8 @@ services:
       - "${EXPOSE_PLUGIN_DEBUGGING_PORT:-5003}:${PLUGIN_DEBUGGING_PORT:-5003}"
     volumes:
       - ./volumes/plugin_daemon:/app/storage
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     depends_on:
       db:
         condition: service_healthy
@@ -679,6 +694,8 @@ services:
     volumes:
       - ./ssrf_proxy/squid.conf.template:/etc/squid/squid.conf.template
       - ./ssrf_proxy/docker-entrypoint.sh:/docker-entrypoint-mount.sh
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     entrypoint: [ 'sh', '-c', "cp /docker-entrypoint-mount.sh /docker-entrypoint.sh && sed -i 's/\r$$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh && /docker-entrypoint.sh" ]
     environment:
       # pls clearly modify the squid env vars to fit your network environment.
@@ -704,6 +721,8 @@ services:
       - ./volumes/certbot/conf/live:/etc/letsencrypt/live
       - ./certbot/update-cert.template.txt:/update-cert.template.txt
       - ./certbot/docker-entrypoint.sh:/docker-entrypoint.sh
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     environment:
       - CERTBOT_EMAIL=${CERTBOT_EMAIL}
       - CERTBOT_DOMAIN=${CERTBOT_DOMAIN}
@@ -726,6 +745,8 @@ services:
       - ./volumes/certbot/conf/live:/etc/letsencrypt/live # cert dir (with certbot container)
       - ./volumes/certbot/conf:/etc/letsencrypt
       - ./volumes/certbot/www:/var/www/html
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     entrypoint: [ 'sh', '-c', "cp /docker-entrypoint-mount.sh /docker-entrypoint.sh && sed -i 's/\r$$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh && /docker-entrypoint.sh" ]
     environment:
       NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-_}
@@ -761,6 +782,8 @@ services:
     volumes:
       # Mount the Weaviate data directory to the con tainer.
       - ./volumes/weaviate:/var/lib/weaviate
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     environment:
       # The Weaviate configurations
       # You can refer to the [Weaviate](https://weaviate.io/developers/weaviate/config-refs/env-vars) documentation for more information.

@@ -9,6 +9,9 @@ from controllers.common.errors import RemoteFileUploadError
 from controllers.web.wraps import WebApiResource
 from core.file import helpers as file_helpers
 from core.helper import ssrf_proxy
+# 导入新的安全工具模块
+from core.security_utils import check_ssrf_risk 
+
 from fields.file_fields import file_fields_with_signed_url, remote_file_info_fields
 from services.file_service import FileService
 
@@ -19,6 +22,11 @@ class RemoteFileInfoApi(WebApiResource):
     @marshal_with(remote_file_info_fields)
     def get(self, app_model, end_user, url):
         decoded_url = urllib.parse.unquote(url)
+
+        # 新增 SSRF 校验
+        if check_ssrf_risk(decoded_url):
+            raise RemoteFileUploadError("目标 URL 校验失败，禁止访问白名单以外的 IP")
+        
         resp = ssrf_proxy.head(decoded_url)
         if resp.status_code != httpx.codes.OK:
             # failed back to get method
@@ -38,6 +46,10 @@ class RemoteFileUploadApi(WebApiResource):
         args = parser.parse_args()
 
         url = args["url"]
+
+        # 新增 SSRF 校验
+        if check_ssrf_risk(url):
+            raise RemoteFileUploadError("目标 URL 校验失败，禁止访问白名单以外的 IP") 
 
         try:
             resp = ssrf_proxy.head(url=url)

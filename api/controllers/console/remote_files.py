@@ -10,6 +10,9 @@ from controllers.common import helpers
 from controllers.common.errors import RemoteFileUploadError
 from core.file import helpers as file_helpers
 from core.helper import ssrf_proxy
+# 导入新的安全工具模块
+from core.security_utils import check_ssrf_risk 
+
 from fields.file_fields import file_fields_with_signed_url, remote_file_info_fields
 from models.account import Account
 from services.file_service import FileService
@@ -24,6 +27,11 @@ class RemoteFileInfoApi(Resource):
     @marshal_with(remote_file_info_fields)
     def get(self, url):
         decoded_url = urllib.parse.unquote(url)
+
+        # 新增 SSRF 校验
+        if check_ssrf_risk(decoded_url):
+            raise RemoteFileUploadError("目标 URL 校验失败，禁止访问白名单以外的 IP")
+        
         resp = ssrf_proxy.head(decoded_url)
         if resp.status_code != httpx.codes.OK:
             # failed back to get method
@@ -44,15 +52,18 @@ class RemoteFileUploadApi(Resource):
 
         url = args["url"]
 
+        # 新增 SSRF 校验
+        if check_ssrf_risk(url):
+            raise RemoteFileUploadError("目标 URL 校验失败，禁止访问白名单以外的 IP") 
+
         try:
             resp = ssrf_proxy.head(url=url)
             if resp.status_code != httpx.codes.OK:
-                resp = ssrf_proxy.get(url=url, timeout=3, follow_redirects=True)
+                resp = ssrf_proxy.get(url=url, timeout=3, follow_redirects=True) 
             if resp.status_code != httpx.codes.OK:
                 raise RemoteFileUploadError(f"Failed to fetch file from {url}: {resp.text}")
         except httpx.RequestError as e:
             raise RemoteFileUploadError(f"Failed to fetch file from {url}: {str(e)}")
-
         file_info = helpers.guess_file_info_from_response(resp)
 
         if not FileService.is_file_size_within_limit(extension=file_info.extension, file_size=file_info.size):
