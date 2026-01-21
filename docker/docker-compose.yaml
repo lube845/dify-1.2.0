@@ -48,6 +48,7 @@ x-shared-env: &shared-api-worker-env
   ENABLE_WEBSITE_WATERCRAWL: ${ENABLE_WEBSITE_WATERCRAWL:-true}
   DB_USERNAME: ${DB_USERNAME:-postgres}
   DB_PASSWORD: ${DB_PASSWORD:-difyai123456}
+  DB_ENC_KEY: ${DB_ENC_KEY:-}
   DB_HOST: ${DB_HOST:-db}
   DB_PORT: ${DB_PORT:-5432}
   DB_DATABASE: ${DB_DATABASE:-dify}
@@ -472,11 +473,14 @@ x-shared-env: &shared-api-worker-env
   OTEL_BATCH_EXPORT_TIMEOUT: ${OTEL_BATCH_EXPORT_TIMEOUT:-10000}
   OTEL_METRIC_EXPORT_TIMEOUT: ${OTEL_METRIC_EXPORT_TIMEOUT:-30000}
   ALLOWED_REMOTE_IPS: ${ALLOWED_REMOTE_IPS:-}
+  HTTP_REQUEST_MAX_CONNECT_TIMEOUT: ${HTTP_REQUEST_MAX_CONNECT_TIMEOUT:-10}
+  HTTP_REQUEST_MAX_READ_TIMEOUT: ${HTTP_REQUEST_MAX_READ_TIMEOUT:-1500}
+  HTTP_REQUEST_MAX_WRITE_TIMEOUT: ${HTTP_REQUEST_MAX_WRITE_TIMEOUT:-600}
 
 services:
   # API service
   api:
-    image: dify-api-lube:20251009
+    image: dify-api-lube:20260112
     restart: always
     environment:
       # Use the shared environment variables.
@@ -512,7 +516,7 @@ services:
   # worker service
   # The Celery worker for processing the queue.
   worker:
-    image: dify-api-lube:20251009
+    image: dify-api-lube:20260112
     restart: always
     environment:
       # Use the shared environment variables.
@@ -543,7 +547,7 @@ services:
 
   # Frontend web application.
   web:
-    image: docker-web:latest
+    image: dify_web_lube:20251119
     # build:
     #   context: /home/gzyh/lube/python_project/dify-1.2.0/web  # 指向本地web目录
     #   dockerfile: Dockerfile
@@ -644,6 +648,7 @@ services:
     environment:
       # Use the shared environment variables.
       <<: *shared-api-worker-env
+      DB_PASSWORD: ${PLUGIN_DB_PASSWORD:-difyai123456}
       DB_DATABASE: ${DB_PLUGIN_DATABASE:-dify_plugin}
       SERVER_PORT: ${PLUGIN_DAEMON_PORT:-5002}
       SERVER_KEY: ${PLUGIN_DAEMON_KEY:-lYkiYYT6owG+71oLerGzA7GXCgOT++6ovaezWAjpCjf+Sjc3ZtU+qUEi}

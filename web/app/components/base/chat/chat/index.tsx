@@ -198,8 +198,10 @@ const Chat: FC<ChatProps> = ({
     const chatContainer = chatContainerRef.current
     if (chatContainer) {
       const setUserScrolled = () => {
-        if (chatContainer)
-          userScrolledRef.current = chatContainer.scrollHeight - chatContainer.scrollTop > chatContainer.clientHeight
+        if (chatContainer) {
+          const isNearBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 100
+          userScrolledRef.current = !isNearBottom
+        }
       }
       chatContainer.addEventListener('scroll', setUserScrolled)
       return () => chatContainer.removeEventListener('scroll', setUserScrolled)
@@ -210,6 +212,42 @@ const Chat: FC<ChatProps> = ({
     if (!sidebarCollapseState)
       setTimeout(() => handleWindowResize(), 200)
   }, [sidebarCollapseState])
+
+  // ========== 修复:流式输出时持续滚动 ==========
+  useEffect(() => {
+    if (isResponding && chatContainerRef.current) {
+      let rafId: number
+      
+      const autoScroll = () => {
+        if (chatContainerRef.current && !userScrolledRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+        }
+        if (isResponding) {
+          rafId = requestAnimationFrame(autoScroll)
+        }
+      }
+      
+      rafId = requestAnimationFrame(autoScroll)
+      
+      return () => {
+        if (rafId) {
+          cancelAnimationFrame(rafId)
+        }
+      }
+    }
+  }, [isResponding])
+  
+  // 当 chatList 变化时也触发滚动
+  useEffect(() => {
+    if (!userScrolledRef.current && chatContainerRef.current) {
+      requestAnimationFrame(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+        }
+      })
+    }
+  }, [chatList])
+  // ============================================
 
   const hasTryToAsk = config?.suggested_questions_after_answer?.enabled && !!suggestedQuestions?.length && onSend
 

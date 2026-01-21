@@ -1,8 +1,9 @@
 import os
+from cryptography.fernet import Fernet
 from typing import Any, Literal, Optional
 from urllib.parse import quote_plus
 
-from pydantic import Field, NonNegativeInt, PositiveFloat, PositiveInt, computed_field
+from pydantic import Field, NonNegativeInt, PositiveFloat, PositiveInt, computed_field, field_validator
 from pydantic_settings import BaseSettings
 
 from .cache.redis_config import RedisConfig
@@ -111,6 +112,41 @@ class DatabaseConfig(BaseSettings):
         description="Password for database authentication.",
         default="",
     )
+
+    @field_validator("DB_PASSWORD", mode="before")
+    @classmethod
+    def decrypt_db_password(cls, encrypted_data: str) -> str:
+        # 1. 处理空值或非字符串情况
+        if not encrypted_data or not isinstance(encrypted_data, str):
+            return encrypted_data or ""
+
+        # 2. 策略：只解密带有特定前缀的密码 (例如 "ENC:xxxxx")
+        # 这样本地开发可以直接填明文 "123456"，生产环境填 "ENC:密文"
+        prefix = "ENC:"
+        if not encrypted_data.startswith(prefix):
+            return encrypted_data
+
+        # 去掉前缀，获取真正的密文
+        cipher_text = encrypted_data[len(prefix):]
+
+        # 3. 获取并检查密钥
+        encrypt_key = os.getenv("DB_ENC_KEY")
+        if not encrypt_key:
+            raise ValueError("配置了加密密码，但未找到环境变量 APP_ENCRYPTION_KEY，无法解密。")
+
+        try:
+            f = Fernet(encrypt_key)
+            # Fernet decrypt 需要 bytes 类型，如果输入是 str 需要 encode
+            # 注意：pydantic mode='before' 拿到的可能是 str
+            if isinstance(cipher_text, str):
+                cipher_text = cipher_text.encode("utf-8")
+            
+            decrypted_byte = f.decrypt(cipher_text)
+            return decrypted_byte.decode('utf-8')
+            
+        except Exception as e:
+            # 4. 必须抛出异常，阻止应用带病启动
+            raise ValueError(f"数据库密码解密失败，请检查 APP_ENCRYPTION_KEY 是否正确。详细错误: {str(e)}")
 
     DB_DATABASE: str = Field(
         description="Name of the database to connect to.",

@@ -29,7 +29,7 @@ import useTheme from '@/hooks/use-theme'
 import cn from '@/utils/classnames'
 import SVGRenderer from './svg-gallery'
 
-// Available language https://github.com/react-syntax-highlighter/react-syntax-highlighter/blob/master/AVAILABLE_LANGUAGES_HLJS.MD
+// Available language react-syntax-highlighter/AVAILABLE_LANGUAGES_HLJS.MD at master · react-syntax-highlighter/react-synt
 const capitalizationLanguageNameMap: Record<string, string> = {
   sql: 'SQL',
   javascript: 'JavaScript',
@@ -217,6 +217,214 @@ const ScriptBlock = memo(({ node }: any) => {
 })
 ScriptBlock.displayName = 'ScriptBlock'
 
+const TableBlock = ({ node, ...props }: any) => {
+  const tableRef = useRef<HTMLTableElement>(null)
+  const table = node
+
+  /**
+   * 从表格单元格节点中提取文本内容
+   * 处理嵌套的文本节点和内联元素
+   */
+  const extractCellText = (cell: any): string => {
+    if (!cell.children || cell.children.length === 0) {
+      return ''
+    }
+    
+    // 递归提取所有文本内容
+    const getText = (node: any): string => {
+      if (node.type === 'text') {
+        return node.value || ''
+      }
+      if (node.children) {
+        return node.children.map(getText).join('')
+      }
+      return ''
+    }
+    
+    return getText(cell).trim()
+  }
+
+  /**
+   * 转义 CSV 格式的特殊字符
+   * - 如果单元格包含逗号、双引号或换行符，需要用双引号包裹
+   * - 双引号本身需要转义为两个双引号
+   */
+  const escapeCsvCell = (text: string): string => {
+    // 如果包含特殊字符，需要用引号包裹
+    if (text.includes(',') || text.includes('"') || text.includes('\n') || text.includes('\r')) {
+      // 将双引号转义为两个双引号
+      return `"${text.replace(/"/g, '""')}"`
+    }
+    return text
+  }
+
+  /**
+   * 转义 HTML 特殊字符
+   */
+  const escapeHtml = (text: string): string => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;')
+  }
+
+  /**
+   * 从表格行节点中提取所有单元格的文本
+   */
+  const extractRowData = (row: any): string[] => {
+    if (!row.children) {
+      return []
+    }
+    return row.children
+      .filter((cell: any) => cell.type === 'element' && (cell.tagName === 'th' || cell.tagName === 'td'))
+      .map(extractCellText)
+  }
+
+  /**
+   * 生成 CSV 格式的字符串
+   */
+  const generateCsv = (): string => {
+    const csvRows: string[] = []
+
+    // 查找 thead 和 tbody
+    const thead = table.children?.find((child: any) => child.tagName === 'thead')
+    const tbody = table.children?.find((child: any) => child.tagName === 'tbody')
+
+    // 处理表头
+    if (thead && thead.children) {
+      thead.children.forEach((row: any) => {
+        if (row.tagName === 'tr') {
+          const headers = extractRowData(row)
+          if (headers.length > 0) {
+            csvRows.push(headers.map(escapeCsvCell).join(','))
+          }
+        }
+      })
+    }
+
+    // 处理表体
+    if (tbody && tbody.children) {
+      tbody.children.forEach((row: any) => {
+        if (row.tagName === 'tr') {
+          const cells = extractRowData(row)
+          if (cells.length > 0) {
+            csvRows.push(cells.map(escapeCsvCell).join(','))
+          }
+        }
+      })
+    }
+
+    return csvRows.join('\n')
+  }
+
+  /**
+   * 生成 HTML 格式的表格字符串（用于 WPS、Word 等应用）
+   */
+  const generateHtmlTable = (): string => {
+    const thead = table.children?.find((child: any) => child.tagName === 'thead')
+    const tbody = table.children?.find((child: any) => child.tagName === 'tbody')
+
+    let html = '<table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; border: 1px solid #ddd;">'
+
+    // 处理表头
+    if (thead && thead.children) {
+      html += '<thead>'
+      thead.children.forEach((row: any) => {
+        if (row.tagName === 'tr') {
+          html += '<tr>'
+          const headers = extractRowData(row)
+          headers.forEach((header) => {
+            html += `<th style="border: 1px solid #ddd; padding: 8px; background-color: #f2f2f2; font-weight: bold;">${escapeHtml(header)}</th>`
+          })
+          html += '</tr>'
+        }
+      })
+      html += '</thead>'
+    }
+
+    // 处理表体
+    if (tbody && tbody.children) {
+      html += '<tbody>'
+      tbody.children.forEach((row: any) => {
+        if (row.tagName === 'tr') {
+          html += '<tr>'
+          const cells = extractRowData(row)
+          cells.forEach((cell) => {
+            html += `<td style="border: 1px solid #ddd; padding: 8px;">${escapeHtml(cell)}</td>`
+          })
+          html += '</tr>'
+        }
+      })
+      html += '</tbody>'
+    }
+
+    html += '</table>'
+    return html
+  }
+
+  /**
+   * 自定义复制功能：同时复制 CSV 和 HTML 格式
+   */
+  const handleCopy = async () => {
+    try {
+      const csv = generateCsv()
+      const html = generateHtmlTable()
+
+      // 检查浏览器是否支持 ClipboardItem API
+      if (navigator.clipboard && window.ClipboardItem) {
+        // 创建包含多种格式的 ClipboardItem
+        const clipboardItem = new ClipboardItem({
+          'text/plain': new Blob([csv], { type: 'text/plain' }),
+          'text/html': new Blob([html], { type: 'text/html' }),
+        })
+
+        await navigator.clipboard.write([clipboardItem])
+        console.log('表格已复制（多格式）')
+      } else {
+        // 降级方案：只复制纯文本
+        await navigator.clipboard.writeText(csv)
+        console.log('表格已复制（仅文本格式）')
+      }
+    } catch (error) {
+      console.error('复制失败:', error)
+      // 如果上述方法都失败，尝试传统的复制方法
+      fallbackCopy(generateCsv())
+    }
+  }
+
+  /**
+   * 降级复制方案（用于不支持 Clipboard API 的浏览器）
+   */
+  const fallbackCopy = (text: string) => {
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.style.position = 'fixed'
+    textArea.style.left = '-999999px'
+    document.body.appendChild(textArea)
+    textArea.select()
+    try {
+      document.execCommand('copy')
+      console.log('表格已复制（降级方案）')
+    } catch (error) {
+      console.error('降级复制失败:', error)
+    }
+    document.body.removeChild(textArea)
+  }
+
+  return (
+    <div className="relative">
+      <table ref={tableRef} {...props} />
+      <div className="absolute -top-7 right-0">
+        <ActionButton onClick={handleCopy}>
+          <CopyIcon />
+        </ActionButton>
+      </div>
+    </div>
+  )
+}
+
 const Paragraph = (paragraph: any) => {
   const { node }: any = paragraph
   const children_node = node.children
@@ -298,6 +506,7 @@ export function Markdown(props: { content: string; className?: string; customDis
           form: MarkdownForm,
           script: ScriptBlock as any,
           details: ThinkBlock,
+          table: TableBlock,
         }}
       >
         {/* Markdown detect has problem. */}
