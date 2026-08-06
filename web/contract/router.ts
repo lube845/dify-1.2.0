@@ -17,6 +17,14 @@ import {
 } from './console/explore'
 import { changePreferredProviderTypeContract, modelProvidersModelsContract } from './console/model-providers'
 import { notificationContract, notificationDismissContract } from './console/notification'
+import {
+  permissionsAppUpdateContract,
+  permissionsAppsContract,
+  permissionsWhitelistCreateContract,
+  permissionsWhitelistDeleteContract,
+  permissionsWhitelistListContract,
+  permissionsWhitelistUpdateContract,
+} from './console/permissions'
 import { pluginCheckInstalledContract, pluginLatestVersionsContract } from './console/plugins'
 import { systemFeaturesContract } from './console/system'
 import {
@@ -104,6 +112,14 @@ export const consoleRouterContract = {
   modelProviders: {
     models: modelProvidersModelsContract,
     changePreferredProviderType: changePreferredProviderTypeContract,
+  },
+  permissions: {
+    apps: permissionsAppsContract,
+    appUpdate: permissionsAppUpdateContract,
+    whitelistList: permissionsWhitelistListContract,
+    whitelistCreate: permissionsWhitelistCreateContract,
+    whitelistUpdate: permissionsWhitelistUpdateContract,
+    whitelistDelete: permissionsWhitelistDeleteContract,
   },
   plugins: {
     checkInstalled: pluginCheckInstalledContract,

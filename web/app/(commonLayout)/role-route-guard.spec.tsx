@@ -106,4 +106,22 @@ describe('RoleRouteGuard', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(mockReplace).not.toHaveBeenCalled()
   })
+
+  it('should redirect dataset operator on /permissions', async () => {
+    mockPathname = '/permissions'
+    setAppContext({
+      isCurrentWorkspaceDatasetOperator: true,
+    })
+
+    render((
+      <RoleRouteGuard>
+        <div>content</div>
+      </RoleRouteGuard>
+    ))
+
+    expect(screen.queryByText('content')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/datasets')
+    })
+  })
 })

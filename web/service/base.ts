@@ -774,6 +774,7 @@ export const request = async<T>(url: string, options = {}, otherOptions?: IOther
     if (err === null)
       return resp
     const errResp: Response = err as any
+    const { silent = false } = otherOptionsForBaseFetch
     if (errResp.status === 401) {
       const [parseErr, errRespData] = await asyncRunSafe<ResponseError>(errResp.json())
       const loginUrl = `${globalThis.location.origin}${basePath}/signin`
@@ -801,7 +802,6 @@ export const request = async<T>(url: string, options = {}, otherOptions?: IOther
       }
       const {
         isPublicAPI = false,
-        silent,
       } = otherOptionsForBaseFetch
       if (isPublicAPI && code === 'unauthorized') {
         requiredWebSSOLogin()
