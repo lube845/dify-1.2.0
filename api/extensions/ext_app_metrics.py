@@ -5,6 +5,7 @@ import threading
 from flask import Response
 
 from configs import dify_config
+from controllers.console.admin import admin_required
 from dify_app import DifyApp
 
 
@@ -12,19 +13,20 @@ def init_app(app: DifyApp):
     @app.after_request
     def after_request(response):
         """Add Version headers to the response."""
-        response.headers.add("X-Version", dify_config.CURRENT_VERSION)
+        response.headers.add("X-Version", dify_config.project.version)
         response.headers.add("X-Env", dify_config.DEPLOY_ENV)
         return response
 
     @app.route("/health")
     def health():
         return Response(
-            json.dumps({"pid": os.getpid(), "status": "ok", "version": dify_config.CURRENT_VERSION}),
+            json.dumps({"pid": os.getpid(), "status": "ok", "version": dify_config.project.version}),
             status=200,
             content_type="application/json",
         )
 
     @app.route("/threads")
+    @admin_required
     def threads():
         num_threads = threading.active_count()
         threads = threading.enumerate()
@@ -50,6 +52,7 @@ def init_app(app: DifyApp):
         }
 
     @app.route("/db-pool-stat")
+    @admin_required
     def pool_stat():
         from extensions.ext_database import db
 

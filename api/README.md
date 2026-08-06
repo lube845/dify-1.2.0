@@ -1,89 +1,136 @@
 # Dify Backend API
 
-## Usage
+## Setup and Run
 
 > [!IMPORTANT]
-> In the v0.6.12 release, we deprecated `pip` as the package management tool for Dify API Backend service and replaced it with `poetry`.
+>
+> In the v1.3.0 release, `poetry` has been replaced with
+> [`uv`](https://docs.astral.sh/uv/) as the package manager
+> for Dify API backend service.
 
-1. Start the docker-compose stack
+`uv` and `pnpm` are required to run the setup and development commands below.
 
-   The backend require some middleware, including PostgreSQL, Redis, and Weaviate, which can be started together using `docker-compose`.
+### Using scripts (recommended)
 
-   ```bash
-   cd ../docker
-   cp middleware.env.example middleware.env
-   # change the profile to other vector database if you are not using weaviate
-   docker compose -f docker-compose.middleware.yaml --profile weaviate -p dify up -d
-   cd ../api
-   ```
+The scripts resolve paths relative to their location, so you can run them from anywhere.
 
-2. Copy `.env.example` to `.env`
-
-   ```cli
-   cp .env.example .env 
-   ```
-3. Generate a `SECRET_KEY` in the `.env` file.
-
-   bash for Linux
-   ```bash for Linux
-   sed -i "/^SECRET_KEY=/c\SECRET_KEY=$(openssl rand -base64 42)" .env
-   ```
-   bash for Mac
-   ```bash for Mac
-   secret_key=$(openssl rand -base64 42)
-   sed -i '' "/^SECRET_KEY=/c\\
-   SECRET_KEY=${secret_key}" .env
-   ```
-
-4. Create environment.
-
-   Dify API service uses [Poetry](https://python-poetry.org/docs/) to manage dependencies. First, you need to add the poetry shell plugin, if you don't have it already, in order to run in a virtual environment. [Note: Poetry shell is no longer a native command so you need to install the poetry plugin beforehand]
+1. Run setup (copies env files and installs dependencies).
 
    ```bash
-   poetry self add poetry-plugin-shell
+   ./dev/setup
    ```
-   
-   Then, You can execute `poetry shell` to activate the environment.
 
-5. Install dependencies
+1. Review `api/.env`, `web/.env.local`, and `docker/middleware.env` values (see the `SECRET_KEY` note below).
+
+1. Start middleware (PostgreSQL/Redis/Weaviate).
 
    ```bash
-   poetry env use 3.12
-   poetry install
+   ./dev/start-docker-compose
    ```
 
-6. Run migrate
-
-   Before the first launch, migrate the database to the latest version.
+1. Start backend (runs migrations first).
 
    ```bash
-   poetry run python -m flask db upgrade
+   ./dev/start-api
    ```
 
-7. Start backend
+1. Start Dify [web](../web) service.
 
    ```bash
-   poetry run python -m flask run --host 0.0.0.0 --port=5001 --debug
+   ./dev/start-web
    ```
 
-8. Start Dify [web](../web) service.
-9. Setup your application by visiting `http://localhost:3000`...
-10. If you need to handle and debug the async tasks (e.g. dataset importing and documents indexing), please start the worker service.
+   `./dev/setup` and `./dev/start-web` install JavaScript dependencies through the repository root workspace, so you do not need a separate `cd web && pnpm install` step.
+
+1. Set up your application by visiting `http://localhost:3000`.
+
+1. Start the worker service (async and scheduler tasks, runs from `api`).
 
    ```bash
-   poetry run python -m celery -A app.celery worker -P gevent -c 1 --loglevel INFO -Q dataset,generation,mail,ops_trace,app_deletion
+   ./dev/start-worker
    ```
+
+1. Optional: start Celery Beat (scheduled tasks).
+
+   ```bash
+   ./dev/start-beat
+   ```
+
+### Environment notes
+
+> [!IMPORTANT]
+>
+> When the frontend and backend run on different subdomains, set COOKIE_DOMAIN to the site’s top-level domain (e.g., `example.com`). The frontend and backend must be under the same top-level domain in order to share authentication cookies.
+
+- Generate a `SECRET_KEY` in the `.env` file.
+
+  bash for Linux
+
+  ```bash
+  sed -i "/^SECRET_KEY=/c\\SECRET_KEY=$(openssl rand -base64 42)" .env
+  ```
+
+  bash for Mac
+
+  ```bash
+  secret_key=$(openssl rand -base64 42)
+  sed -i '' "/^SECRET_KEY=/c\\
+  SECRET_KEY=${secret_key}" .env
+  ```
 
 ## Testing
 
 1. Install dependencies for both the backend and the test environment
 
    ```bash
-   poetry install -C api --with dev
+   cd api
+   uv sync --group dev
    ```
 
-2. Run the tests locally with mocked system environment variables in `tool.pytest_env` section in `pyproject.toml`
+1. Run the tests locally with mocked system environment variables in `tool.pytest_env` section in `pyproject.toml`, more can check [Claude.md](../CLAUDE.md)
 
    ```bash
-   poetry run -P api bash dev/pytest/pytest_all_tests.sh
+   cd api
+   uv run pytest                           # Run all tests
+   uv run pytest tests/unit_tests/         # Unit tests only
+   uv run pytest tests/integration_tests/  # Integration tests
+
+   # Code quality
+   ./dev/reformat               # Run all formatters and linters
+   uv run ruff check --fix ./   # Fix linting issues
+   uv run ruff format ./        # Format code
+   uv run pyrefly check         # Type checking
    ```
+
+## Generate TS stub
+
+```
+uv run dev/generate_swagger_specs.py --output-dir openapi
+```
+
+use https://jsontotable.org/openapi-to-typescript to convert to typescript
+
+## Third-party package patches (`gxz_change/`)
+
+Some local customisations need to modify code that lives inside installed
+third-party packages (for example the `graphon` workflow engine, which now
+hosts the document extractor previously found at
+`api/core/workflow/nodes/document_extractor/`). Those changes are tracked
+as unified-diff `.patch` files under [`gxz_change/`](gxz_change/README.md)
+and are applied automatically in `api/Dockerfile` immediately after
+`uv sync`, so production images ship with the patched venv.
+
+For local development you need to apply them by hand once after each
+`uv sync` (the loop is idempotent, `patch --forward` skips already-applied
+hunks):
+
+```bash
+cd api
+SITE_PACKAGES=".venv/lib/python3.12/site-packages"
+for f in gxz_change/*.patch; do
+  (cd "$SITE_PACKAGES" && patch -p1 --forward --no-backup-if-mismatch < "../../$f")
+done
+```
+
+See [`gxz_change/README.md`](gxz_change/README.md) for the patch
+conventions and the current patch index.

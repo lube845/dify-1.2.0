@@ -1,16 +1,17 @@
 import os
-from cryptography.fernet import Fernet
-from typing import Any, Literal, Optional
-from urllib.parse import quote_plus
+from typing import Any, Literal, TypedDict, cast
+from urllib.parse import parse_qsl, quote_plus
 
-from pydantic import Field, NonNegativeInt, PositiveFloat, PositiveInt, computed_field, field_validator
+from pydantic import Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt, computed_field
 from pydantic_settings import BaseSettings
 
 from .cache.redis_config import RedisConfig
+from .cache.redis_pubsub_config import RedisPubSubConfig
 from .storage.aliyun_oss_storage_config import AliyunOSSStorageConfig
 from .storage.amazon_s3_storage_config import S3StorageConfig
 from .storage.azure_blob_storage_config import AzureBlobStorageConfig
 from .storage.baidu_obs_storage_config import BaiduOBSStorageConfig
+from .storage.clickzetta_volume_storage_config import ClickZettaVolumeStorageConfig
 from .storage.google_cloud_storage_config import GoogleCloudStorageConfig
 from .storage.huawei_obs_storage_config import HuaweiCloudOBSStorageConfig
 from .storage.oci_storage_config import OCIStorageConfig
@@ -18,12 +19,18 @@ from .storage.opendal_storage_config import OpenDALStorageConfig
 from .storage.supabase_storage_config import SupabaseStorageConfig
 from .storage.tencent_cos_storage_config import TencentCloudCOSStorageConfig
 from .storage.volcengine_tos_storage_config import VolcengineTOSStorageConfig
+from .vdb.alibabacloud_mysql_config import AlibabaCloudMySQLConfig
 from .vdb.analyticdb_config import AnalyticdbConfig
 from .vdb.baidu_vector_config import BaiduVectorDBConfig
 from .vdb.chroma_config import ChromaConfig
+from .vdb.clickzetta_config import ClickzettaConfig
 from .vdb.couchbase_config import CouchbaseConfig
 from .vdb.elasticsearch_config import ElasticsearchConfig
+from .vdb.hologres_config import HologresConfig
+from .vdb.huawei_cloud_config import HuaweiCloudConfig
+from .vdb.iris_config import IrisVectorConfig
 from .vdb.lindorm_config import LindormConfig
+from .vdb.matrixone_config import MatrixoneConfig
 from .vdb.milvus_config import MilvusConfig
 from .vdb.myscale_config import MyScaleConfig
 from .vdb.oceanbase_config import OceanBaseVectorConfig
@@ -39,29 +46,34 @@ from .vdb.tencent_vector_config import TencentVectorDBConfig
 from .vdb.tidb_on_qdrant_config import TidbOnQdrantConfig
 from .vdb.tidb_vector_config import TiDBVectorConfig
 from .vdb.upstash_config import UpstashConfig
+from .vdb.vastbase_vector_config import VastbaseVectorConfig
 from .vdb.vikingdb_config import VikingDBConfig
 from .vdb.weaviate_config import WeaviateConfig
 
+_VALID_STORAGE_TYPE = Literal[
+    "opendal",
+    "s3",
+    "aliyun-oss",
+    "azure-blob",
+    "baidu-obs",
+    "clickzetta-volume",
+    "google-storage",
+    "huawei-obs",
+    "oci-storage",
+    "tencent-cos",
+    "volcengine-tos",
+    "supabase",
+    "local",
+]
+
 
 class StorageConfig(BaseSettings):
-    STORAGE_TYPE: Literal[
-        "opendal",
-        "s3",
-        "aliyun-oss",
-        "azure-blob",
-        "baidu-obs",
-        "google-storage",
-        "huawei-obs",
-        "oci-storage",
-        "tencent-cos",
-        "volcengine-tos",
-        "supabase",
-        "local",
-    ] = Field(
+    STORAGE_TYPE: _VALID_STORAGE_TYPE = Field(
         description="Type of storage to use."
-        " Options: 'opendal', '(deprecated) local', 's3', 'aliyun-oss', 'azure-blob', 'baidu-obs', 'google-storage', "
-        "'huawei-obs', 'oci-storage', 'tencent-cos', 'volcengine-tos', 'supabase'. Default is 'opendal'.",
-        default="opendal",
+        " Options: 'opendal', '(deprecated) local', 's3', 'aliyun-oss', 'azure-blob', 'baidu-obs', "
+        "'clickzetta-volume', 'google-storage', 'huawei-obs', 'oci-storage', 'tencent-cos', "
+        "'volcengine-tos', 'supabase'. Default is 'opendal'.",
+        default=cast(_VALID_STORAGE_TYPE, "opendal"),
     )
 
     STORAGE_LOCAL_PATH: str = Field(
@@ -72,15 +84,20 @@ class StorageConfig(BaseSettings):
 
 
 class VectorStoreConfig(BaseSettings):
-    VECTOR_STORE: Optional[str] = Field(
+    VECTOR_STORE: str | None = Field(
         description="Type of vector store to use for efficient similarity search."
         " Set to None if not using a vector store.",
         default=None,
     )
 
-    VECTOR_STORE_WHITELIST_ENABLE: Optional[bool] = Field(
+    VECTOR_STORE_WHITELIST_ENABLE: bool | None = Field(
         description="Enable whitelist for vector store.",
         default=False,
+    )
+
+    VECTOR_INDEX_NAME_PREFIX: str | None = Field(
+        description="Prefix used to create collection name in vector database",
+        default="Vector_index",
     )
 
 
@@ -92,7 +109,24 @@ class KeywordStoreConfig(BaseSettings):
     )
 
 
+class SQLAlchemyEngineOptionsDict(TypedDict):
+    pool_size: int
+    max_overflow: int
+    pool_recycle: int
+    pool_pre_ping: bool
+    connect_args: dict[str, str]
+    pool_use_lifo: bool
+    pool_reset_on_return: Literal["commit", "rollback", None]
+    pool_timeout: int
+
+
 class DatabaseConfig(BaseSettings):
+    # Database type selector
+    DB_TYPE: Literal["postgresql", "mysql", "oceanbase", "seekdb"] = Field(
+        description="Database type to use. OceanBase is MySQL-compatible.",
+        default="postgresql",
+    )
+
     DB_HOST: str = Field(
         description="Hostname or IP address of the database server.",
         default="localhost",
@@ -113,48 +147,18 @@ class DatabaseConfig(BaseSettings):
         default="",
     )
 
-    @field_validator("DB_PASSWORD", mode="before")
-    @classmethod
-    def decrypt_db_password(cls, encrypted_data: str) -> str:
-        # 1. 处理空值或非字符串情况
-        if not encrypted_data or not isinstance(encrypted_data, str):
-            return encrypted_data or ""
-
-        # 2. 策略：只解密带有特定前缀的密码 (例如 "ENC:xxxxx")
-        # 这样本地开发可以直接填明文 "123456"，生产环境填 "ENC:密文"
-        prefix = "ENC:"
-        if not encrypted_data.startswith(prefix):
-            return encrypted_data
-
-        # 去掉前缀，获取真正的密文
-        cipher_text = encrypted_data[len(prefix):]
-
-        # 3. 获取并检查密钥
-        encrypt_key = os.getenv("DB_ENC_KEY")
-        if not encrypt_key:
-            raise ValueError("配置了加密密码，但未找到环境变量 APP_ENCRYPTION_KEY，无法解密。")
-
-        try:
-            f = Fernet(encrypt_key)
-            # Fernet decrypt 需要 bytes 类型，如果输入是 str 需要 encode
-            # 注意：pydantic mode='before' 拿到的可能是 str
-            if isinstance(cipher_text, str):
-                cipher_text = cipher_text.encode("utf-8")
-            
-            decrypted_byte = f.decrypt(cipher_text)
-            return decrypted_byte.decode('utf-8')
-            
-        except Exception as e:
-            # 4. 必须抛出异常，阻止应用带病启动
-            raise ValueError(f"数据库密码解密失败，请检查 APP_ENCRYPTION_KEY 是否正确。详细错误: {str(e)}")
-
     DB_DATABASE: str = Field(
         description="Name of the database to connect to.",
         default="dify",
     )
 
     DB_CHARSET: str = Field(
-        description="Character set for database connection.",
+        description=(
+            "Character set for database connection. "
+            "Used for PostgreSQL `client_encoding` and the pymysql `charset` connect arg. "
+            "Defaults to utf8mb4 for MySQL/OceanBase/SeekDB when empty, "
+            "since the historical pymysql default (latin1) corrupts non-ASCII data."
+        ),
         default="",
     )
 
@@ -163,12 +167,23 @@ class DatabaseConfig(BaseSettings):
         default="",
     )
 
-    SQLALCHEMY_DATABASE_URI_SCHEME: str = Field(
-        description="Database URI scheme for SQLAlchemy connection.",
-        default="postgresql",
+    DB_SESSION_TIMEZONE_OVERRIDE: str = Field(
+        description=(
+            "PostgreSQL session timezone override injected via startup options."
+            " Default is 'UTC' for out-of-the-box consistency."
+            " Set to empty string to disable app-level timezone injection, for example when using RDS Proxy"
+            " together with a database-side default timezone."
+        ),
+        default="UTC",
     )
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def SQLALCHEMY_DATABASE_URI_SCHEME(self) -> str:
+        return "postgresql" if self.DB_TYPE == "postgresql" else "mysql+pymysql"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
         db_extras = (
             f"{self.DB_EXTRAS}&client_encoding={self.DB_CHARSET}" if self.DB_CHARSET else self.DB_EXTRAS
@@ -195,6 +210,11 @@ class DatabaseConfig(BaseSettings):
         default=3600,
     )
 
+    SQLALCHEMY_POOL_USE_LIFO: bool = Field(
+        description="If True, SQLAlchemy will use last-in-first-out way to retrieve connections from pool.",
+        default=False,
+    )
+
     SQLALCHEMY_POOL_PRE_PING: bool = Field(
         description="If True, enables connection pool pre-ping feature to check connections.",
         default=False,
@@ -205,55 +225,103 @@ class DatabaseConfig(BaseSettings):
         default=False,
     )
 
-    RETRIEVAL_SERVICE_EXECUTORS: NonNegativeInt = Field(
-        description="Number of processes for the retrieval service, default to CPU cores.",
-        default=os.cpu_count(),
+    SQLALCHEMY_POOL_TIMEOUT: NonNegativeInt = Field(
+        description="Number of seconds to wait for a connection from the pool before raising a timeout error.",
+        default=30,
     )
 
-    @computed_field
-    def SQLALCHEMY_ENGINE_OPTIONS(self) -> dict[str, Any]:
-        return {
+    SQLALCHEMY_POOL_RESET_ON_RETURN: Literal["commit", "rollback", None] = Field(
+        description="Connection pool reset behavior on return. Options: 'commit', 'rollback', or None",
+        default="rollback",
+    )
+
+    RETRIEVAL_SERVICE_EXECUTORS: NonNegativeInt = Field(
+        description="Number of processes for the retrieval service, default to CPU cores.",
+        default=os.cpu_count() or 1,
+    )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def SQLALCHEMY_ENGINE_OPTIONS(self) -> SQLAlchemyEngineOptionsDict:
+        # Parse DB_EXTRAS for 'options'
+        db_extras_dict = dict(parse_qsl(self.DB_EXTRAS))
+        options = db_extras_dict.get("options", "")
+        connect_args: dict[str, str] = {}
+        # Use the dynamic SQLALCHEMY_DATABASE_URI_SCHEME property
+        if self.SQLALCHEMY_DATABASE_URI_SCHEME.startswith("postgresql"):
+            merged_options = options.strip()
+            session_timezone_override = self.DB_SESSION_TIMEZONE_OVERRIDE.strip()
+            if session_timezone_override:
+                timezone_opt = f"-c timezone={session_timezone_override}"
+                merged_options = f"{merged_options} {timezone_opt}".strip() if merged_options else timezone_opt
+            if merged_options:
+                connect_args = {"options": merged_options}
+        elif self.SQLALCHEMY_DATABASE_URI_SCHEME.startswith("mysql"):
+            # pymysql's historical default is latin1, which silently corrupts
+            # non-ASCII bytes (e.g. Chinese department names become `????`).
+            # Honor DB_CHARSET if explicitly set; otherwise force utf8mb4.
+            connect_args["charset"] = self.DB_CHARSET or "utf8mb4"
+
+        result: SQLAlchemyEngineOptionsDict = {
             "pool_size": self.SQLALCHEMY_POOL_SIZE,
             "max_overflow": self.SQLALCHEMY_MAX_OVERFLOW,
             "pool_recycle": self.SQLALCHEMY_POOL_RECYCLE,
             "pool_pre_ping": self.SQLALCHEMY_POOL_PRE_PING,
-            "connect_args": {"options": "-c timezone=UTC"},
+            "connect_args": connect_args,
+            "pool_use_lifo": self.SQLALCHEMY_POOL_USE_LIFO,
+            "pool_reset_on_return": self.SQLALCHEMY_POOL_RESET_ON_RETURN,
+            "pool_timeout": self.SQLALCHEMY_POOL_TIMEOUT,
         }
+        return result
 
 
 class CeleryConfig(DatabaseConfig):
     CELERY_BACKEND: str = Field(
-        description="Backend for Celery task results. Options: 'database', 'redis'.",
-        default="database",
+        description="Backend for Celery task results. Options: 'database', 'redis', 'rabbitmq'.",
+        default="redis",
     )
 
-    CELERY_BROKER_URL: Optional[str] = Field(
+    CELERY_BROKER_URL: str | None = Field(
         description="URL of the message broker for Celery tasks.",
         default=None,
     )
 
-    CELERY_USE_SENTINEL: Optional[bool] = Field(
+    CELERY_USE_SENTINEL: bool | None = Field(
         description="Whether to use Redis Sentinel for high availability.",
         default=False,
     )
 
-    CELERY_SENTINEL_MASTER_NAME: Optional[str] = Field(
+    CELERY_SENTINEL_MASTER_NAME: str | None = Field(
         description="Name of the Redis Sentinel master.",
         default=None,
     )
 
-    CELERY_SENTINEL_SOCKET_TIMEOUT: Optional[PositiveFloat] = Field(
+    CELERY_SENTINEL_PASSWORD: str | None = Field(
+        description="Password of the Redis Sentinel master.",
+        default=None,
+    )
+
+    CELERY_SENTINEL_SOCKET_TIMEOUT: PositiveFloat | None = Field(
         description="Timeout for Redis Sentinel socket operations in seconds.",
         default=0.1,
     )
 
+    CELERY_TASK_ANNOTATIONS: dict[str, Any] | None = Field(
+        description=(
+            "Annotations for Celery tasks as a JSON mapping of task name -> options "
+            "(for example, rate limits or other task-specific settings)."
+        ),
+        default=None,
+    )
+
     @computed_field
     def CELERY_RESULT_BACKEND(self) -> str | None:
-        return (
-            "db+{}".format(self.SQLALCHEMY_DATABASE_URI)
-            if self.CELERY_BACKEND == "database"
-            else self.CELERY_BROKER_URL
-        )
+        if self.CELERY_BACKEND in ("database", "rabbitmq"):
+            return f"db+{self.SQLALCHEMY_DATABASE_URI}"
+        elif self.CELERY_BACKEND == "redis":
+            return self.CELERY_BROKER_URL
+        else:
+            return None
 
     @property
     def BROKER_USE_SSL(self) -> bool:
@@ -265,28 +333,48 @@ class InternalTestConfig(BaseSettings):
     Configuration settings for Internal Test
     """
 
-    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(
+    AWS_SECRET_ACCESS_KEY: str | None = Field(
         description="Internal test AWS secret access key",
         default=None,
     )
 
-    AWS_ACCESS_KEY_ID: Optional[str] = Field(
+    AWS_ACCESS_KEY_ID: str | None = Field(
         description="Internal test AWS access key ID",
         default=None,
     )
 
 
+class DatasetQueueMonitorConfig(BaseSettings):
+    """
+    Configuration settings for Dataset Queue Monitor
+    """
+
+    QUEUE_MONITOR_THRESHOLD: NonNegativeInt | None = Field(
+        description="Threshold for dataset queue monitor",
+        default=200,
+    )
+    QUEUE_MONITOR_ALERT_EMAILS: str | None = Field(
+        description="Emails for dataset queue monitor alert, separated by commas",
+        default=None,
+    )
+    QUEUE_MONITOR_INTERVAL: NonNegativeFloat | None = Field(
+        description="Interval for dataset queue monitor in minutes",
+        default=30,
+    )
+
+
 class MiddlewareConfig(
     # place the configs in alphabet order
-    CeleryConfig,
-    DatabaseConfig,
+    CeleryConfig,  # Note: CeleryConfig already inherits from DatabaseConfig
     KeywordStoreConfig,
     RedisConfig,
+    RedisPubSubConfig,
     # configs of storage and storage providers
     StorageConfig,
     AliyunOSSStorageConfig,
     AzureBlobStorageConfig,
     BaiduOBSStorageConfig,
+    ClickZettaVolumeStorageConfig,
     GoogleCloudStorageConfig,
     HuaweiCloudOBSStorageConfig,
     OCIStorageConfig,
@@ -299,11 +387,17 @@ class MiddlewareConfig(
     VectorStoreConfig,
     AnalyticdbConfig,
     ChromaConfig,
+    ClickzettaConfig,
+    HologresConfig,
+    HuaweiCloudConfig,
+    IrisVectorConfig,
     MilvusConfig,
+    AlibabaCloudMySQLConfig,
     MyScaleConfig,
     OpenSearchConfig,
     OracleConfig,
     PGVectorConfig,
+    VastbaseVectorConfig,
     PGVectoRSConfig,
     QdrantConfig,
     RelytConfig,
@@ -321,5 +415,7 @@ class MiddlewareConfig(
     BaiduVectorDBConfig,
     OpenGaussConfig,
     TableStoreConfig,
+    DatasetQueueMonitorConfig,
+    MatrixoneConfig,
 ):
     pass

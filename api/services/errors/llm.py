@@ -1,12 +1,9 @@
-from typing import Optional
-
-
 class InvokeError(Exception):
     """Base class for all LLM exceptions."""
 
-    description: Optional[str] = None
+    description: str = ""
 
-    def __init__(self, description: Optional[str] = None) -> None:
+    def __init__(self, description: str = ""):
         self.description = description
 
     def __str__(self):

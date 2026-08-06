@@ -1,23 +1,39 @@
+from collections.abc import Callable
+from datetime import UTC, datetime
 from functools import wraps
+from typing import Concatenate
 
 from flask import request
-from flask_restful import Resource  # type: ignore
+from flask_restx import Resource
+from sqlalchemy import select
+from sqlalchemy.orm import sessionmaker
 from werkzeug.exceptions import BadRequest, NotFound, Unauthorized
 
-from controllers.web.error import WebSSOAuthRequiredError
+from constants import HEADER_NAME_APP_CODE
+from controllers.web.error import (
+    AppAccessPermissionDeniedError,
+    WebAppAuthAccessDeniedError,
+    WebAppAuthRequiredError,
+    WebAppPermissionExpiredError,
+)
 from extensions.ext_database import db
 from libs.passport import PassportService
+from libs.token import extract_webapp_passport
 from models.model import App, EndUser, Site
-from services.enterprise.enterprise_service import EnterpriseService
+from services.app_access_permission_service import AccessCheckResult, AppAccessPermissionService
+from services.app_service import AppService
+from services.enterprise.enterprise_service import EnterpriseService, WebAppSettings
 from services.feature_service import FeatureService
+from services.webapp_auth_service import WebAppAuthService
 
 
-def validate_jwt_token(view=None):
-    def decorator(view):
+def validate_jwt_token[**P, R](
+    view: Callable[Concatenate[App, EndUser, P], R] | None = None,
+) -> Callable[P, R] | Callable[[Callable[Concatenate[App, EndUser, P], R]], Callable[P, R]]:
+    def decorator(view: Callable[Concatenate[App, EndUser, P], R]) -> Callable[P, R]:
         @wraps(view)
-        def decorated(*args, **kwargs):
+        def decorated(*args: P.args, **kwargs: P.kwargs) -> R:
             app_model, end_user = decode_jwt_token()
-
             return view(app_model, end_user, *args, **kwargs)
 
         return decorated
@@ -27,65 +43,141 @@ def validate_jwt_token(view=None):
     return decorator
 
 
-def decode_jwt_token():
+def decode_jwt_token(app_code: str | None = None, user_id: str | None = None) -> tuple[App, EndUser]:
     system_features = FeatureService.get_system_features()
-    app_code = request.headers.get("X-App-Code")
+    if not app_code:
+        app_code = str(request.headers.get(HEADER_NAME_APP_CODE))
     try:
-        auth_header = request.headers.get("Authorization")
-        if auth_header is None:
-            raise Unauthorized("Authorization header is missing.")
-
-        if " " not in auth_header:
-            raise Unauthorized("Invalid Authorization header format. Expected 'Bearer <api-key>' format.")
-
-        auth_scheme, tk = auth_header.split(None, 1)
-        auth_scheme = auth_scheme.lower()
-
-        if auth_scheme != "bearer":
-            raise Unauthorized("Invalid Authorization header format. Expected 'Bearer <api-key>' format.")
+        tk = extract_webapp_passport(app_code, request)
+        if not tk:
+            raise Unauthorized("App token is missing.")
         decoded = PassportService().verify(tk)
         app_code = decoded.get("app_code")
-        app_model = db.session.query(App).filter(App.id == decoded["app_id"]).first()
-        site = db.session.query(Site).filter(Site.code == app_code).first()
-        if not app_model:
-            raise NotFound()
-        if not app_code or not site:
-            raise BadRequest("Site URL is no longer valid.")
-        if app_model.enable_site is False:
-            raise BadRequest("Site is disabled.")
-        end_user = db.session.query(EndUser).filter(EndUser.id == decoded["end_user_id"]).first()
-        if not end_user:
-            raise NotFound()
+        app_id = decoded.get("app_id")
+        with sessionmaker(db.engine, expire_on_commit=False).begin() as session:
+            app_model = session.scalar(select(App).where(App.id == app_id))
+            site = session.scalar(select(Site).where(Site.code == app_code))
+            if not app_model:
+                raise NotFound()
+            if not app_code or not site:
+                raise BadRequest("Site URL is no longer valid.")
+            if app_model.enable_site is False:
+                raise BadRequest("Site is disabled.")
+            end_user_id = decoded.get("end_user_id")
+            end_user = session.scalar(select(EndUser).where(EndUser.id == end_user_id))
+            if not end_user:
+                raise NotFound()
 
-        _validate_web_sso_token(decoded, system_features, app_code)
+            # Validate user_id against end_user's session_id if provided
+            if user_id is not None and end_user.session_id != user_id:
+                raise Unauthorized("Authentication has expired.")
+
+        # for enterprise webapp auth
+        app_web_auth_enabled = False
+        webapp_settings = None
+        if system_features.webapp_auth.enabled:
+            app_id = AppService.get_app_id_by_code(app_code)
+            webapp_settings = EnterpriseService.WebAppAuth.get_app_access_mode_by_id(app_id)
+            if not webapp_settings:
+                raise NotFound("Web app settings not found.")
+            app_web_auth_enabled = webapp_settings.access_mode != "public"
+
+        _validate_webapp_token(decoded, app_web_auth_enabled, system_features.webapp_auth.enabled)
+        _validate_user_accessibility(
+            decoded,
+            app_code,
+            app_web_auth_enabled,
+            system_features.webapp_auth.enabled,
+            webapp_settings,
+            app_model=app_model,
+            end_user=end_user,
+        )
 
         return app_model, end_user
     except Unauthorized as e:
-        if system_features.sso_enforced_for_web:
-            app_web_sso_enabled = EnterpriseService.get_app_web_sso_enabled(app_code).get("enabled", False)
-            if app_web_sso_enabled:
-                raise WebSSOAuthRequiredError()
+        if system_features.webapp_auth.enabled:
+            if not app_code:
+                raise Unauthorized("Please re-login to access the web app.")
+            app_id = AppService.get_app_id_by_code(app_code)
+            app_web_auth_enabled = (
+                EnterpriseService.WebAppAuth.get_app_access_mode_by_id(app_id=app_id).access_mode != "public"
+            )
+            if app_web_auth_enabled:
+                raise WebAppAuthRequiredError()
 
         raise Unauthorized(e.description)
 
 
-def _validate_web_sso_token(decoded, system_features, app_code):
-    app_web_sso_enabled = False
-
-    # Check if SSO is enforced for web, and if the token source is not SSO, raise an error and redirect to SSO login
-    if system_features.sso_enforced_for_web:
-        app_web_sso_enabled = EnterpriseService.get_app_web_sso_enabled(app_code).get("enabled", False)
-        if app_web_sso_enabled:
-            source = decoded.get("token_source")
-            if not source or source != "sso":
-                raise WebSSOAuthRequiredError()
-
-    # Check if SSO is not enforced for web, and if the token source is SSO,
-    # raise an error and redirect to normal passport login
-    if not system_features.sso_enforced_for_web or not app_web_sso_enabled:
+def _validate_webapp_token(decoded, app_web_auth_enabled: bool, system_webapp_auth_enabled: bool):
+    # Check if authentication is enforced for web app, and if the token source is not webapp,
+    # raise an error and redirect to login
+    if system_webapp_auth_enabled and app_web_auth_enabled:
         source = decoded.get("token_source")
-        if source and source == "sso":
-            raise Unauthorized("sso token expired.")
+        if not source or source != "webapp":
+            raise WebAppAuthRequiredError()
+
+    # Check if authentication is not enforced for web, and if the token source is webapp,
+    # raise an error and redirect to normal passport login
+    if not system_webapp_auth_enabled or not app_web_auth_enabled:
+        source = decoded.get("token_source")
+        if source and source == "webapp":
+            raise Unauthorized("webapp token expired.")
+
+
+def _validate_user_accessibility(
+    decoded,
+    app_code,
+    app_web_auth_enabled: bool,
+    system_webapp_auth_enabled: bool,
+    webapp_settings: WebAppSettings | None,
+    *,
+    app_model: App,
+    end_user: EndUser,
+):
+    if system_webapp_auth_enabled and app_web_auth_enabled:
+        # Check if the user is allowed to access the web app
+        user_id = decoded.get("user_id")
+        if not user_id:
+            raise WebAppAuthRequiredError()
+
+        if not webapp_settings:
+            raise WebAppAuthRequiredError("Web app settings not found.")
+
+        if WebAppAuthService.is_app_require_permission_check(access_mode=webapp_settings.access_mode):
+            app_id = AppService.get_app_id_by_code(app_code)
+            if not EnterpriseService.WebAppAuth.is_user_allowed_to_access_webapp(user_id, app_id):
+                raise WebAppAuthAccessDeniedError()
+
+        auth_type = decoded.get("auth_type")
+        granted_at = decoded.get("granted_at")
+        if not auth_type:
+            raise WebAppAuthRequiredError("Missing auth_type in the token.")
+        if not granted_at:
+            raise WebAppAuthRequiredError("Missing granted_at in the token.")
+        # check if sso has been updated — the user *was* granted access, but
+        # their token is now stale relative to the current SSO config. Surface
+        # as "re-auth required" (frontend: "权限已过期" page) rather than the
+        # generic "not authorised" page, because the user can self-recover
+        # by signing in again.
+        if auth_type == "external":
+            last_update_time = EnterpriseService.get_app_sso_settings_last_update_time()
+            if granted_at and datetime.fromtimestamp(granted_at, tz=UTC) < last_update_time:
+                raise WebAppAuthRequiredError("SSO settings have been updated. Please re-login.")
+        elif auth_type == "internal":
+            last_update_time = EnterpriseService.get_workspace_sso_settings_last_update_time()
+            if granted_at and datetime.fromtimestamp(granted_at, tz=UTC) < last_update_time:
+                raise WebAppAuthRequiredError("SSO settings have been updated. Please re-login.")
+
+    # Per-app explicit allowlist (independent of the enterprise webapp-auth flow above).
+    # Distinguishing EXPIRED from DENIED lets the webapp gate tell the user
+    # "your permission has expired, contact admin to renew" rather than the
+    # generic "you are not authorised" — the latter is wrong for users who
+    # *were* granted access and whose row just lapsed.
+    result = AppAccessPermissionService.check_access_with_reason(app=app_model, end_user=end_user)
+    if result == AccessCheckResult.EXPIRED:
+        raise WebAppPermissionExpiredError()
+    if result != AccessCheckResult.ALLOWED:
+        raise AppAccessPermissionDeniedError()
 
 
 class WebApiResource(Resource):

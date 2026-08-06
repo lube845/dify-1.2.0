@@ -1,7 +1,8 @@
 from collections.abc import Sequence
 from typing import Any, cast
 
-from core.model_runtime.entities import (
+from core.prompt.simple_prompt_transform import ModelMode
+from graphon.model_runtime.entities import (
     AssistantPromptMessage,
     AudioPromptMessageContent,
     ImagePromptMessageContent,
@@ -10,12 +11,11 @@ from core.model_runtime.entities import (
     PromptMessageRole,
     TextPromptMessageContent,
 )
-from core.prompt.simple_prompt_transform import ModelMode
 
 
 class PromptMessageUtil:
     @staticmethod
-    def prompt_messages_to_prompt_for_saving(model_mode: str, prompt_messages: Sequence[PromptMessage]) -> list[dict]:
+    def prompt_messages_to_prompt_for_saving(model_mode: str, prompt_messages: Sequence[PromptMessage]):
         """
         Prompt messages to prompt for saving.
         :param model_mode: model mode
@@ -53,24 +53,27 @@ class PromptMessageUtil:
                 files = []
                 if isinstance(prompt_message.content, list):
                     for content in prompt_message.content:
-                        if isinstance(content, TextPromptMessageContent):
-                            text += content.data
-                        elif isinstance(content, ImagePromptMessageContent):
-                            files.append(
-                                {
-                                    "type": "image",
-                                    "data": content.data[:10] + "...[TRUNCATED]..." + content.data[-10:],
-                                    "detail": content.detail.value,
-                                }
-                            )
-                        elif isinstance(content, AudioPromptMessageContent):
-                            files.append(
-                                {
-                                    "type": "audio",
-                                    "data": content.data[:10] + "...[TRUNCATED]..." + content.data[-10:],
-                                    "format": content.format,
-                                }
-                            )
+                        match content:
+                            case TextPromptMessageContent():
+                                text += content.data
+                            case ImagePromptMessageContent():
+                                files.append(
+                                    {
+                                        "type": "image",
+                                        "data": content.data[:10] + "...[TRUNCATED]..." + content.data[-10:],
+                                        "detail": content.detail.value,
+                                    }
+                                )
+                            case AudioPromptMessageContent():
+                                files.append(
+                                    {
+                                        "type": "audio",
+                                        "data": content.data[:10] + "...[TRUNCATED]..." + content.data[-10:],
+                                        "format": content.format,
+                                    }
+                                )
+                            case _:
+                                continue
                 else:
                     text = cast(str, prompt_message.content)
 
@@ -87,7 +90,6 @@ class PromptMessageUtil:
             if isinstance(prompt_message.content, list):
                 for content in prompt_message.content:
                     if content.type == PromptMessageContentType.TEXT:
-                        content = cast(TextPromptMessageContent, content)
                         text += content.data
                     else:
                         content = cast(ImagePromptMessageContent, content)

@@ -1,6 +1,6 @@
-from flask_restful import fields  # type: ignore
+from flask_restx import fields
 
-from core.file import File
+from graphon.file import File
 
 
 class FilesContainedField(fields.Raw):

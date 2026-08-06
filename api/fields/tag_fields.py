@@ -1,3 +1,10 @@
-from flask_restful import fields  # type: ignore
+from __future__ import annotations
 
-tag_fields = {"id": fields.String, "name": fields.String, "type": fields.String, "binding_count": fields.String}
+from fields.base import ResponseModel
+
+
+class DataSetTag(ResponseModel):
+    id: str
+    name: str
+    type: str
+    binding_count: str | None = None

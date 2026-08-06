@@ -97,34 +97,52 @@ class ProviderNotSupportSpeechToTextError(BaseHTTPException):
     code = 400
 
 
-class NoFileUploadedError(BaseHTTPException):
-    error_code = "no_file_uploaded"
-    description = "Please upload your file."
-    code = 400
-
-
-class TooManyFilesError(BaseHTTPException):
-    error_code = "too_many_files"
-    description = "Only one file is allowed."
-    code = 400
-
-
-class FileTooLargeError(BaseHTTPException):
-    error_code = "file_too_large"
-    description = "File size exceeded. {message}"
-    code = 413
-
-
-class UnsupportedFileTypeError(BaseHTTPException):
-    error_code = "unsupported_file_type"
-    description = "File type not allowed."
-    code = 415
-
-
-class WebSSOAuthRequiredError(BaseHTTPException):
+class WebAppAuthRequiredError(BaseHTTPException):
     error_code = "web_sso_auth_required"
-    description = "Web SSO authentication required."
+    description = "Web app authentication required."
     code = 401
+
+
+class WebAppAuthAccessDeniedError(BaseHTTPException):
+    error_code = "web_app_access_denied"
+    description = "You do not have permission to access this web app."
+    code = 401
+
+
+class WebAppPermissionExpiredError(BaseHTTPException):
+    """Raised when an end_user's per-app allowlist row has expired.
+
+    Distinct from ``AppAccessPermissionDeniedError`` (no row at all) and
+    ``WebAppAuthRequiredError`` (SSO / token side): this user *was* on the
+    per-app allowlist, but their ``AppAccessPermission.expires_at`` is in the
+    past. The user cannot self-recover; an admin must renew the row.
+
+    Frontend translates this to the ``webapp.authExpired`` i18n key
+    (``web/i18n/{en-US,zh-Hans}/common.json``), so the user sees
+    "权限已过期 / access expired" instead of the generic "您未被授权 / not
+    authorised" message.
+    """
+
+    error_code = "web_app_permission_expired"
+    description = "Your access to this app has expired. Please contact your administrator."
+    code = 401
+
+
+class AppAccessPermissionDeniedError(BaseHTTPException):
+    """Raised when an end_user is not on the app's explicit access allowlist.
+
+    Distinct from ``WebAppAuthAccessDeniedError`` (which signals an SSO-side
+    rejection): this one means the user authenticated successfully but the
+    app's ``access_policy`` is ``deny_all_explicit`` and no matching
+    ``AppAccessPermission`` row exists, or the existing one has expired.
+
+    Frontend translates ``description`` via the ``webapp.accessDenied`` i18n
+    key (``web/i18n/{en-US,zh-Hans}/common.json``).
+    """
+
+    error_code = "app_access_permission_denied"
+    description = "You are not authorized to access this app. Please contact your administrator."
+    code = 403
 
 
 class InvokeRateLimitError(BaseHTTPException):
@@ -133,3 +151,19 @@ class InvokeRateLimitError(BaseHTTPException):
     error_code = "rate_limit_error"
     description = "Rate Limit Error"
     code = 429
+
+
+class WebFormRateLimitExceededError(BaseHTTPException):
+    error_code = "web_form_rate_limit_exceeded"
+    description = "Too many form requests. Please try again later."
+    code = 429
+
+
+class NotFoundError(BaseHTTPException):
+    error_code = "not_found"
+    code = 404
+
+
+class InvalidArgumentError(BaseHTTPException):
+    error_code = "invalid_param"
+    code = 400

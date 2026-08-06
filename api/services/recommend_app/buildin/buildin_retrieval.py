@@ -1,7 +1,7 @@
 import json
 from os import path
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from flask import current_app
 
@@ -14,12 +14,12 @@ class BuildInRecommendAppRetrieval(RecommendAppRetrievalBase):
     Retrieval recommended app from buildin, the location  is constants/recommended_apps.json
     """
 
-    builtin_data: Optional[dict] = None
+    builtin_data: dict[str, Any] | None = None
 
     def get_type(self) -> str:
         return RecommendAppType.BUILDIN
 
-    def get_recommended_apps_and_categories(self, language: str) -> dict:
+    def get_recommended_apps_and_categories(self, language: str):
         result = self.fetch_recommended_apps_from_builtin(language)
         return result
 
@@ -28,7 +28,7 @@ class BuildInRecommendAppRetrieval(RecommendAppRetrievalBase):
         return result
 
     @classmethod
-    def _get_builtin_data(cls) -> dict:
+    def _get_builtin_data(cls):
         """
         Get builtin data.
         :return:
@@ -44,7 +44,7 @@ class BuildInRecommendAppRetrieval(RecommendAppRetrievalBase):
         return cls.builtin_data or {}
 
     @classmethod
-    def fetch_recommended_apps_from_builtin(cls, language: str) -> dict:
+    def fetch_recommended_apps_from_builtin(cls, language: str):
         """
         Fetch recommended apps from builtin.
         :param language: language
@@ -54,7 +54,7 @@ class BuildInRecommendAppRetrieval(RecommendAppRetrievalBase):
         return builtin_data.get("recommended_apps", {}).get(language, {})
 
     @classmethod
-    def fetch_recommended_app_detail_from_builtin(cls, app_id: str) -> Optional[dict]:
+    def fetch_recommended_app_detail_from_builtin(cls, app_id: str) -> dict[str, Any] | None:
         """
         Fetch recommended app detail from builtin.
         :param app_id: App ID
