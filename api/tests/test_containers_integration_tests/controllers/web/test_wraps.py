@@ -12,12 +12,16 @@ from flask import Flask
 from sqlalchemy.orm import Session
 from werkzeug.exceptions import BadRequest, NotFound, Unauthorized
 
-from controllers.web.error import WebAppAuthAccessDeniedError, WebAppAuthRequiredError
+from controllers.web.error import (
+    WebAppAuthAccessDeniedError,
+    WebAppAuthRequiredError,
+)
 from controllers.web.wraps import (
     _validate_user_accessibility,
     _validate_webapp_token,
     decode_jwt_token,
 )
+from services.app_access_permission_service import AccessCheckResult
 
 
 class TestValidateWebappToken:
@@ -55,6 +59,20 @@ class TestValidateWebappToken:
 
 
 class TestValidateUserAccessibility:
+    @pytest.fixture(autouse=True)
+    def _mock_permission_check(self):
+        """Default the new AppAccessPermission check to True.
+
+        Individual tests in this class exercise the enterprise webapp-auth
+        branch; the permission check is a separate concern covered by
+        ``api/tests/unit_tests/controllers/web/test_wraps.py``.
+        """
+        with patch(
+            "controllers.web.wraps.AppAccessPermissionService.check_access_with_reason",
+            return_value=AccessCheckResult.ALLOWED,
+        ):
+            yield
+
     def test_skips_when_auth_disabled(self) -> None:
         _validate_user_accessibility(
             decoded={},
@@ -62,6 +80,8 @@ class TestValidateUserAccessibility:
             app_web_auth_enabled=False,
             system_webapp_auth_enabled=False,
             webapp_settings=None,
+            app_model=MagicMock(),
+            end_user=MagicMock(),
         )
 
     def test_missing_user_id_raises(self) -> None:
@@ -73,6 +93,8 @@ class TestValidateUserAccessibility:
                 app_web_auth_enabled=True,
                 system_webapp_auth_enabled=True,
                 webapp_settings=SimpleNamespace(access_mode="internal"),
+                app_model=MagicMock(),
+                end_user=MagicMock(),
             )
 
     def test_missing_webapp_settings_raises(self) -> None:
@@ -84,30 +106,40 @@ class TestValidateUserAccessibility:
                 app_web_auth_enabled=True,
                 system_webapp_auth_enabled=True,
                 webapp_settings=None,
+                app_model=MagicMock(),
+                end_user=MagicMock(),
             )
 
     def test_missing_auth_type_raises(self) -> None:
+        # Token-shape errors are surfaced as "re-auth required": the user
+        # needs to sign in again to get a properly-shaped token. Frontend
+        # routes these to the "权限已过期" page, not the generic
+        # "您未被授权" page.
         decoded = {"user_id": "u1", "granted_at": 1}
         settings = SimpleNamespace(access_mode="public")
-        with pytest.raises(WebAppAuthAccessDeniedError, match="auth_type"):
+        with pytest.raises(WebAppAuthRequiredError, match="auth_type"):
             _validate_user_accessibility(
                 decoded=decoded,
                 app_code="code",
                 app_web_auth_enabled=True,
                 system_webapp_auth_enabled=True,
                 webapp_settings=settings,
+                app_model=MagicMock(),
+                end_user=MagicMock(),
             )
 
     def test_missing_granted_at_raises(self) -> None:
         decoded = {"user_id": "u1", "auth_type": "external"}
         settings = SimpleNamespace(access_mode="public")
-        with pytest.raises(WebAppAuthAccessDeniedError, match="granted_at"):
+        with pytest.raises(WebAppAuthRequiredError, match="granted_at"):
             _validate_user_accessibility(
                 decoded=decoded,
                 app_code="code",
                 app_web_auth_enabled=True,
                 system_webapp_auth_enabled=True,
                 webapp_settings=settings,
+                app_model=MagicMock(),
+                end_user=MagicMock(),
             )
 
     @patch("controllers.web.wraps.EnterpriseService.get_app_sso_settings_last_update_time")
@@ -115,17 +147,22 @@ class TestValidateUserAccessibility:
     def test_external_auth_type_checks_sso_update_time(
         self, mock_perm_check: MagicMock, mock_sso_time: MagicMock
     ) -> None:
+        # The user *was* granted access, but the SSO config has moved on
+        # since their `granted_at`. They can self-recover by signing in
+        # again, so this is "re-auth required" rather than "denied".
         mock_sso_time.return_value = datetime.now(UTC)
         old_granted = int((datetime.now(UTC) - timedelta(hours=1)).timestamp())
         decoded = {"user_id": "u1", "auth_type": "external", "granted_at": old_granted}
         settings = SimpleNamespace(access_mode="public")
-        with pytest.raises(WebAppAuthAccessDeniedError, match="SSO settings"):
+        with pytest.raises(WebAppAuthRequiredError, match="SSO settings"):
             _validate_user_accessibility(
                 decoded=decoded,
                 app_code="code",
                 app_web_auth_enabled=True,
                 system_webapp_auth_enabled=True,
                 webapp_settings=settings,
+                app_model=MagicMock(),
+                end_user=MagicMock(),
             )
 
     @patch("controllers.web.wraps.EnterpriseService.get_workspace_sso_settings_last_update_time")
@@ -137,13 +174,15 @@ class TestValidateUserAccessibility:
         old_granted = int((datetime.now(UTC) - timedelta(hours=1)).timestamp())
         decoded = {"user_id": "u1", "auth_type": "internal", "granted_at": old_granted}
         settings = SimpleNamespace(access_mode="public")
-        with pytest.raises(WebAppAuthAccessDeniedError, match="SSO settings"):
+        with pytest.raises(WebAppAuthRequiredError, match="SSO settings"):
             _validate_user_accessibility(
                 decoded=decoded,
                 app_code="code",
                 app_web_auth_enabled=True,
                 system_webapp_auth_enabled=True,
                 webapp_settings=settings,
+                app_model=MagicMock(),
+                end_user=MagicMock(),
             )
 
     @patch("controllers.web.wraps.EnterpriseService.get_app_sso_settings_last_update_time")
@@ -161,6 +200,8 @@ class TestValidateUserAccessibility:
             app_web_auth_enabled=True,
             system_webapp_auth_enabled=True,
             webapp_settings=settings,
+            app_model=MagicMock(),
+            end_user=MagicMock(),
         )
 
     @patch("controllers.web.wraps.EnterpriseService.WebAppAuth.is_user_allowed_to_access_webapp", return_value=False)
@@ -178,6 +219,8 @@ class TestValidateUserAccessibility:
                 app_web_auth_enabled=True,
                 system_webapp_auth_enabled=True,
                 webapp_settings=settings,
+                app_model=MagicMock(),
+                end_user=MagicMock(),
             )
 
 

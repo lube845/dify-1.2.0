@@ -109,6 +109,42 @@ class WebAppAuthAccessDeniedError(BaseHTTPException):
     code = 401
 
 
+class WebAppPermissionExpiredError(BaseHTTPException):
+    """Raised when an end_user's per-app allowlist row has expired.
+
+    Distinct from ``AppAccessPermissionDeniedError`` (no row at all) and
+    ``WebAppAuthRequiredError`` (SSO / token side): this user *was* on the
+    per-app allowlist, but their ``AppAccessPermission.expires_at`` is in the
+    past. The user cannot self-recover; an admin must renew the row.
+
+    Frontend translates this to the ``webapp.authExpired`` i18n key
+    (``web/i18n/{en-US,zh-Hans}/common.json``), so the user sees
+    "权限已过期 / access expired" instead of the generic "您未被授权 / not
+    authorised" message.
+    """
+
+    error_code = "web_app_permission_expired"
+    description = "Your access to this app has expired. Please contact your administrator."
+    code = 401
+
+
+class AppAccessPermissionDeniedError(BaseHTTPException):
+    """Raised when an end_user is not on the app's explicit access allowlist.
+
+    Distinct from ``WebAppAuthAccessDeniedError`` (which signals an SSO-side
+    rejection): this one means the user authenticated successfully but the
+    app's ``access_policy`` is ``deny_all_explicit`` and no matching
+    ``AppAccessPermission`` row exists, or the existing one has expired.
+
+    Frontend translates ``description`` via the ``webapp.accessDenied`` i18n
+    key (``web/i18n/{en-US,zh-Hans}/common.json``).
+    """
+
+    error_code = "app_access_permission_denied"
+    description = "You are not authorized to access this app. Please contact your administrator."
+    code = 403
+
+
 class InvokeRateLimitError(BaseHTTPException):
     """Raised when the Invoke returns rate limit error."""
 

@@ -109,3 +109,28 @@ uv run dev/generate_swagger_specs.py --output-dir openapi
 ```
 
 use https://jsontotable.org/openapi-to-typescript to convert to typescript
+
+## Third-party package patches (`gxz_change/`)
+
+Some local customisations need to modify code that lives inside installed
+third-party packages (for example the `graphon` workflow engine, which now
+hosts the document extractor previously found at
+`api/core/workflow/nodes/document_extractor/`). Those changes are tracked
+as unified-diff `.patch` files under [`gxz_change/`](gxz_change/README.md)
+and are applied automatically in `api/Dockerfile` immediately after
+`uv sync`, so production images ship with the patched venv.
+
+For local development you need to apply them by hand once after each
+`uv sync` (the loop is idempotent, `patch --forward` skips already-applied
+hunks):
+
+```bash
+cd api
+SITE_PACKAGES=".venv/lib/python3.12/site-packages"
+for f in gxz_change/*.patch; do
+  (cd "$SITE_PACKAGES" && patch -p1 --forward --no-backup-if-mismatch < "../../$f")
+done
+```
+
+See [`gxz_change/README.md`](gxz_change/README.md) for the patch
+conventions and the current patch index.

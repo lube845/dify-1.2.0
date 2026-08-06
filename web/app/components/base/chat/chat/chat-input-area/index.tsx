@@ -4,10 +4,11 @@ import type { InputForm } from '../type'
 import type { FileUpload } from '@/app/components/base/features/types'
 import { cn } from '@langgenius/dify-ui/cn'
 import { toast } from '@langgenius/dify-ui/toast'
+import { RiErrorWarningFill } from '@remixicon/react'
 import { noop } from 'es-toolkit/function'
 import { decode } from 'html-entities'
 import Recorder from 'js-audio-recorder'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Textarea from 'react-textarea-autosize'
 import FeatureBar from '@/app/components/base/features/new-feature-panel/feature-bar'
@@ -15,10 +16,24 @@ import { FileListInChatInput } from '@/app/components/base/file-uploader'
 import { useFile } from '@/app/components/base/file-uploader/hooks'
 import { FileContextProvider, useFileStore } from '@/app/components/base/file-uploader/store'
 import VoiceInput from '@/app/components/base/voice-input'
+import { InputVarType } from '@/app/components/workflow/types'
 import { TransferMethod } from '@/types/app'
 import { useCheckInputsForms } from '../check-input-forms-hooks'
 import { useTextAreaHeight } from './hooks'
 import Operation from './operation'
+import ToggleButton from './toggle-button'
+
+const isBooleanSelect = (form: InputForm) => {
+  if (form?.type !== InputVarType.select)
+    return false
+  const options = form.options as string[] | undefined
+  if (!options || options.length !== 2)
+    return false
+  return (
+    (options.includes('true') && options.includes('false'))
+    || (options.includes('True') && options.includes('False'))
+  )
+}
 
 type ChatInputAreaProps = {
   readonly?: boolean
@@ -42,8 +57,9 @@ type ChatInputAreaProps = {
    * Useful for CJK (Japanese/Korean/Chinese) IME users who expect Enter to insert newlines.
    */
   sendOnEnter?: boolean
+  onInputChange?: (variable: string, value: any) => void
 }
-const ChatInputArea = ({ readonly, botName, showFeatureBar, showFileUpload, featureBarDisabled, onFeatureBarClick, visionConfig, speechToTextConfig = { enabled: true }, onSend, inputs = {}, inputsForm = [], theme, isResponding, disabled, sendOnEnter = true }: ChatInputAreaProps) => {
+const ChatInputArea = ({ readonly, botName, showFeatureBar, showFileUpload, featureBarDisabled, onFeatureBarClick, visionConfig, speechToTextConfig = { enabled: true }, onSend, inputs = {}, inputsForm = [], theme, isResponding, disabled, sendOnEnter = true, onInputChange }: ChatInputAreaProps) => {
   const { t } = useTranslation()
   const { wrapperRef, textareaRef, textValueRef, holdSpaceRef, handleTextareaResize, isMultipleLine } = useTextAreaHeight()
   const [query, setQuery] = useState('')
@@ -136,6 +152,15 @@ const ChatInputArea = ({ readonly, botName, showFeatureBar, showFileUpload, feat
     })
   }, [t])
   const operation = (<Operation ref={holdSpaceRef} readonly={readonly} fileConfig={visionConfig} speechToTextConfig={speechToTextConfig} onShowVoiceInput={handleShowVoiceInput} onSend={handleSend} theme={theme} />)
+  const toggleButtonForms = useMemo(
+    () => (inputsForm || []).filter(isBooleanSelect),
+    [inputsForm],
+  )
+  const handleToggleChange = useCallback((variable: string, currentValue: any) => {
+    const isCurrentlyActive = currentValue === 'true' || currentValue === true || currentValue === 'True'
+    const newValue = isCurrentlyActive ? 'false' : 'true'
+    onInputChange?.(variable, newValue)
+  }, [onInputChange])
   return (
     <>
       <div className={cn('relative z-10 overflow-hidden rounded-xl border border-components-chat-input-border bg-components-panel-bg-blur pb-[9px] shadow-md', isDragActive && 'border border-dashed border-components-option-card-option-selected-border', disabled && 'pointer-events-none border-components-panel-border opacity-50 shadow-none')}>
@@ -152,7 +177,27 @@ const ChatInputArea = ({ readonly, botName, showFeatureBar, showFileUpload, feat
           </div>
           {showVoiceInput && (<VoiceInput onCancel={() => setShowVoiceInput(false)} onConverted={text => handleQueryChange(text)} />)}
         </div>
+        {toggleButtonForms.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 px-[9px] pt-1 pb-2">
+            {toggleButtonForms.map((form) => {
+              const currentValue = inputs?.[form.variable]
+              const isActive = currentValue === 'true' || currentValue === true || currentValue === 'True'
+              return (
+                <ToggleButton
+                  key={form.variable}
+                  label={form.label}
+                  value={isActive}
+                  onChange={() => handleToggleChange(form.variable, currentValue)}
+                />
+              )
+            })}
+          </div>
+        )}
         {isMultipleLine && (<div className="px-[9px]">{operation}</div>)}
+      </div>
+      <div className="mx-auto mt-2 flex w-fit items-center gap-1.5 rounded-md border border-state-destructive-border bg-state-destructive-hover px-3 py-1.5 system-sm-medium text-text-destructive">
+        <RiErrorWarningFill className="h-4 w-4 shrink-0" />
+        <span>{t('chat.aiGeneratedDisclaimer', { ns: 'common' })}</span>
       </div>
       {showFeatureBar && (<FeatureBar showFileUpload={showFileUpload} disabled={featureBarDisabled} onFeatureBarClick={readonly ? noop : onFeatureBarClick} hideEditEntrance={readonly} />)}
     </>

@@ -40,6 +40,7 @@ export type ChatProps = {
   onSend?: OnSend
   inputs?: Record<string, any>
   inputsForm?: InputForm[]
+  onInputChange?: (variable: string, value: any) => void
   onRegenerate?: OnRegenerate
   chatContainerClassName?: string
   chatContainerInnerClassName?: string
@@ -81,6 +82,7 @@ const Chat: FC<ChatProps> = ({
   onSend,
   inputs,
   inputsForm,
+  onInputChange,
   onRegenerate,
   chatList,
   isResponding,
@@ -248,6 +250,7 @@ const Chat: FC<ChatProps> = ({
                   onSend={onSend}
                   inputs={inputs}
                   inputsForm={inputsForm}
+                  onInputChange={onInputChange}
                   theme={themeBuilder?.theme}
                   isResponding={isResponding}
                   readonly={readonly}

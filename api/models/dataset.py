@@ -1332,26 +1332,6 @@ class TidbAuthBinding(TypeBase):
     )
 
 
-class Whitelist(TypeBase):
-    __tablename__ = "whitelists"
-    __table_args__ = (
-        sa.PrimaryKeyConstraint("id", name="whitelists_pkey"),
-        sa.Index("whitelists_tenant_idx", "tenant_id"),
-    )
-    id: Mapped[str] = mapped_column(
-        StringUUID,
-        primary_key=True,
-        insert_default=lambda: str(uuid4()),
-        default_factory=lambda: str(uuid4()),
-        init=False,
-    )
-    tenant_id: Mapped[str | None] = mapped_column(StringUUID, nullable=True)
-    category: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.current_timestamp(), init=False
-    )
-
-
 class DatasetPermission(TypeBase):
     __tablename__ = "dataset_permissions"
     __table_args__ = (

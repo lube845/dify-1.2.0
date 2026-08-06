@@ -58,20 +58,55 @@ class PassportResource(Resource):
         if not app_model or app_model.status != "normal" or not app_model.enable_site:
             raise NotFound()
 
+        # OA-authenticated users: read the signed oa_session cookie and treat
+        # the cookie's workcode as the authoritative user identity. The cookie
+        # is signed by PassportService, so a forged ?sys.user_id= query param
+        # cannot impersonate a logged-in OA user. The query param is only
+        # honored when no OA cookie is present.
+        # Lazy import to avoid the circular dependency with controllers/web/__init__.py.
+        from controllers.web.oa_auth import decode_oa_session_cookie
+
+        oa_session = decode_oa_session_cookie()
+        if oa_session and oa_session.get("workcode"):
+            user_id = oa_session.get("workcode", "")
+            oa_name = oa_session.get("name", "")
+            oa_department = oa_session.get("department", "")
+            oa_authenticated = True
+        else:
+            oa_name = ""
+            oa_department = ""
+            oa_authenticated = False
+
         if user_id:
             end_user = db.session.scalar(
-                select(EndUser).where(EndUser.app_id == app_model.id, EndUser.session_id == user_id)
+                select(EndUser).where(EndUser.app_id == app_model.id, EndUser.external_user_id == user_id)
             )
+            if not end_user:
+                end_user = db.session.scalar(
+                    select(EndUser).where(EndUser.app_id == app_model.id, EndUser.session_id == user_id)
+                )
 
             if end_user:
-                pass
+                if oa_authenticated:
+                    if not end_user.name and oa_name:
+                        end_user.name = oa_name
+                    if not end_user.department and oa_department:
+                        end_user.department = oa_department
+                    if end_user._is_anonymous:
+                        end_user._is_anonymous = False
+                    if not end_user.external_user_id:
+                        end_user.external_user_id = user_id
+                    db.session.commit()
             else:
                 end_user = EndUser(
                     tenant_id=app_model.tenant_id,
                     app_id=app_model.id,
                     type="browser",
-                    is_anonymous=True,
+                    is_anonymous=not oa_authenticated,
                     session_id=user_id,
+                    external_user_id=user_id,
+                    name=oa_name if oa_authenticated else None,
+                    department=oa_department if oa_authenticated else None,
                 )
                 db.session.add(end_user)
                 db.session.commit()
@@ -154,7 +189,15 @@ def exchange_token_for_existing_web_user(
     end_user = None
     if end_user_id:
         end_user = db.session.scalar(select(EndUser).where(EndUser.id == end_user_id))
-    if session_id:
+    if session_id and not end_user:
+        end_user = db.session.scalar(
+            select(EndUser).where(
+                EndUser.external_user_id == session_id,
+                EndUser.tenant_id == app_model.tenant_id,
+                EndUser.app_id == app_model.id,
+            )
+        )
+    if session_id and not end_user:
         end_user = db.session.scalar(
             select(EndUser).where(
                 EndUser.session_id == session_id,
@@ -171,6 +214,7 @@ def exchange_token_for_existing_web_user(
             type="browser",
             is_anonymous=True,
             session_id=session_id,
+            external_user_id=session_id,
         )
         db.session.add(end_user)
         db.session.commit()
@@ -205,16 +249,22 @@ def _exchange_for_public_app_token(app_model, site, token_decoded):
     end_user = None
     if user_id:
         end_user = db.session.scalar(
-            select(EndUser).where(EndUser.app_id == app_model.id, EndUser.session_id == user_id)
+            select(EndUser).where(EndUser.app_id == app_model.id, EndUser.external_user_id == user_id)
         )
+        if not end_user:
+            end_user = db.session.scalar(
+                select(EndUser).where(EndUser.app_id == app_model.id, EndUser.session_id == user_id)
+            )
 
     if not end_user:
+        new_session_id = generate_session_id()
         end_user = EndUser(
             tenant_id=app_model.tenant_id,
             app_id=app_model.id,
             type="browser",
             is_anonymous=True,
-            session_id=generate_session_id(),
+            session_id=new_session_id,
+            external_user_id=user_id or new_session_id,
         )
 
         db.session.add(end_user)

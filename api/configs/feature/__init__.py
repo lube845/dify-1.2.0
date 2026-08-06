@@ -15,6 +15,7 @@ from pydantic import (
 from pydantic_settings import BaseSettings
 
 from .hosted_service import HostedServiceConfig
+from .oa_config import OAConfig
 
 
 class SecurityConfig(BaseSettings):
@@ -1429,6 +1430,7 @@ class FeatureConfig(
     ModelLoadBalanceConfig,
     ModerationConfig,
     MultiModalTransferConfig,
+    OAConfig,
     OpsTraceConfig,
     PositionConfig,
     RagEtlConfig,

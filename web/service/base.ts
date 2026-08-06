@@ -28,6 +28,7 @@ import type {
   WorkflowStartedResponse,
 } from '@/types/workflow'
 import { toast } from '@langgenius/dify-ui/toast'
+import { t } from 'i18next'
 import Cookies from 'js-cookie'
 import { API_PREFIX, CSRF_COOKIE_NAME, CSRF_HEADER_NAME, IS_CE_EDITION, PASSPORT_HEADER_NAME, PUBLIC_API_PREFIX, WEB_APP_SHARE_CODE_HEADER_NAME } from '@/config'
 import { asyncRunSafe } from '@/utils'
@@ -176,6 +177,21 @@ function requiredWebSSOLogin(message?: string, code?: number) {
   if (code)
     params.append('code', String(code))
   globalThis.location.href = `${globalThis.location.origin}${basePath}${WBB_APP_LOGIN_PATH}?${params.toString()}`
+}
+
+/**
+ * Show a localised toast for an API error response.
+ *
+ * For known app-level access errors (raised by ``AppAccessPermissionService``)
+ * we translate the message via i18n instead of showing the raw English
+ * fallback from the backend.
+ */
+function showApiErrorToast(data?: { code?: string, message?: string }) {
+  if (data?.code === 'app_access_permission_denied') {
+    toast.error(t('webapp.accessDenied', { ns: 'common' }))
+    return
+  }
+  toast.error(data?.message || 'Server Error')
 }
 
 function formatURL(url: string, isPublicAPI: boolean) {
@@ -545,8 +561,8 @@ export const ssePost = async (
           }
         }
         else {
-          res.json().then((data) => {
-            toast.error(data.message || 'Server Error')
+          res.json().then((data: { code?: string, message?: string }) => {
+            showApiErrorToast(data)
           })
           onError?.('Server Error')
         }
@@ -692,8 +708,8 @@ export const sseGet = async (
           }
         }
         else {
-          res.json().then((data) => {
-            toast.error(data.message || 'Server Error')
+          res.json().then((data: { code?: string, message?: string }) => {
+            showApiErrorToast(data)
           })
           onError?.('Server Error')
         }
@@ -817,6 +833,14 @@ export const request = async<T>(url: string, options = {}, otherOptions?: IOther
         return Promise.reject(err)
       }
       jumpTo(buildSigninUrlWithRedirect())
+      return Promise.reject(err)
+    }
+    else if (errResp.status === 403) {
+      // AppAccessPermissionDeniedError: 403 + code=app_access_permission_denied.
+      // Authenticated, but app policy denies this user. Show a localised toast.
+      const [, errRespData] = await asyncRunSafe<ResponseError>(errResp.json())
+      if (!silent)
+        showApiErrorToast(errRespData as { code?: string, message?: string })
       return Promise.reject(err)
     }
     else {

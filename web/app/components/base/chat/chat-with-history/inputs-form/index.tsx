@@ -1,11 +1,25 @@
 import { Button } from '@langgenius/dify-ui/button'
 import { cn } from '@langgenius/dify-ui/cn'
 import * as React from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import InputsFormContent from '@/app/components/base/chat/chat-with-history/inputs-form/content'
 import Divider from '@/app/components/base/divider'
 import { Message3Fill } from '@/app/components/base/icons/src/public/other'
+import { InputVarType } from '@/app/components/workflow/types'
 import { useChatWithHistoryContext } from '../context'
+
+const isBooleanSelect = (form: any) => {
+  if (form?.type !== InputVarType.select)
+    return false
+  const options = form.options as string[] | undefined
+  if (!options || options.length !== 2)
+    return false
+  return (
+    (options.includes('true') && options.includes('false'))
+    || (options.includes('True') && options.includes('False'))
+  )
+}
 
 type Props = {
   collapsed: boolean
@@ -26,7 +40,12 @@ const InputsFormNode = ({
     inputsForms,
   } = useChatWithHistoryContext()
 
-  if (allInputsHidden || inputsForms.length === 0)
+  const hasNonBooleanForm = useMemo(
+    () => inputsForms.some(form => !isBooleanSelect(form)),
+    [inputsForms],
+  )
+
+  if (allInputsHidden || inputsForms.length === 0 || !hasNonBooleanForm)
     return null
 
   return (

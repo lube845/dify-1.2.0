@@ -36,6 +36,8 @@ _UNSTRUCTURED_DOCUMENT_EXTENSION_BASE: frozenset[str] = frozenset(
         "pptx",
         "xml",
         "epub",
+        "wps",
+        "et",
     )
 )
 _DEFAULT_DOCUMENT_EXTENSION_BASE: frozenset[str] = frozenset(
@@ -49,10 +51,13 @@ _DEFAULT_DOCUMENT_EXTENSION_BASE: frozenset[str] = frozenset(
         "htm",
         "xlsx",
         "xls",
+        "doc",
         "docx",
         "csv",
         "vtt",
         "properties",
+        "wps",
+        "et",
     )
 )
 

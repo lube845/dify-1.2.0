@@ -107,7 +107,10 @@ def _resolve_file_type(
     strict_type_validation: bool,
 ) -> FileType:
     if strict_type_validation and specified_type and detected_file_type.value != specified_type:
-        raise ValueError("Detected file type does not match the specified type. Please verify the file.")
+        raise ValueError(
+            "Detected file type does not match the specified type. Please verify the file. "
+            f"detected_file_type:{detected_file_type.value}, specified_type:{specified_type}"
+        )
 
     if specified_type and specified_type != "custom":
         return FileType(specified_type)

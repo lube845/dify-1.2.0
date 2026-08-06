@@ -36,16 +36,30 @@ class EndUserService:
             )
 
     @classmethod
-    def get_or_create_end_user(cls, app_model: App, user_id: str | None = None) -> EndUser:
+    def get_or_create_end_user(
+        cls,
+        app_model: App,
+        user_id: str | None = None,
+        name: str | None = None,
+        department: str | None = None,
+    ) -> EndUser:
         """
         Get or create an end user for a given app.
         """
 
-        return cls.get_or_create_end_user_by_type(InvokeFrom.SERVICE_API, app_model.tenant_id, app_model.id, user_id)
+        return cls.get_or_create_end_user_by_type(
+            InvokeFrom.SERVICE_API, app_model.tenant_id, app_model.id, user_id, name=name, department=department
+        )
 
     @classmethod
     def get_or_create_end_user_by_type(
-        cls, type: InvokeFrom, tenant_id: str, app_id: str, user_id: str | None = None
+        cls,
+        type: InvokeFrom,
+        tenant_id: str,
+        app_id: str,
+        user_id: str | None = None,
+        name: str | None = None,
+        department: str | None = None,
     ) -> EndUser:
         """
         Get or create an end user for a given app and type.
@@ -91,6 +105,8 @@ class EndUserService:
                     is_anonymous=user_id == DefaultEndUserSessionID.DEFAULT_SESSION_ID,
                     session_id=user_id,
                     external_user_id=user_id,
+                    name=name,
+                    department=department,
                 )
                 session.add(end_user)
 
@@ -98,7 +114,13 @@ class EndUserService:
 
     @classmethod
     def create_end_user_batch(
-        cls, type: InvokeFrom, tenant_id: str, app_ids: list[str], user_id: str
+        cls,
+        type: InvokeFrom,
+        tenant_id: str,
+        app_ids: list[str],
+        user_id: str,
+        name: str | None = None,
+        department: str | None = None,
     ) -> Mapping[str, EndUser]:
         """Create end users in batch.
 
@@ -168,6 +190,8 @@ class EndUserService:
                             is_anonymous=is_anonymous,
                             session_id=user_id,
                             external_user_id=user_id,
+                            name=name,
+                            department=department,
                         )
                     )
 

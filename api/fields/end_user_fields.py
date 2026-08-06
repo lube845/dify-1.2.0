@@ -21,6 +21,7 @@ end_user_detail_fields = {
     "type": fields.String,
     "external_user_id": fields.String,
     "name": fields.String,
+    "department": fields.String,
     "is_anonymous": fields.Boolean,
     "session_id": fields.String,
     "created_at": fields.DateTime,
@@ -49,6 +50,7 @@ class EndUserDetail(ResponseModel):
     type: str
     external_user_id: str | None = None
     name: str | None = None
+    department: str | None = None
     is_anonymous: bool = Field(validation_alias="_is_anonymous")
     session_id: str
     created_at: datetime

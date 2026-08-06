@@ -10,11 +10,17 @@ from sqlalchemy.orm import sessionmaker
 from werkzeug.exceptions import BadRequest, NotFound, Unauthorized
 
 from constants import HEADER_NAME_APP_CODE
-from controllers.web.error import WebAppAuthAccessDeniedError, WebAppAuthRequiredError
+from controllers.web.error import (
+    AppAccessPermissionDeniedError,
+    WebAppAuthAccessDeniedError,
+    WebAppAuthRequiredError,
+    WebAppPermissionExpiredError,
+)
 from extensions.ext_database import db
 from libs.passport import PassportService
 from libs.token import extract_webapp_passport
 from models.model import App, EndUser, Site
+from services.app_access_permission_service import AccessCheckResult, AppAccessPermissionService
 from services.app_service import AppService
 from services.enterprise.enterprise_service import EnterpriseService, WebAppSettings
 from services.feature_service import FeatureService
@@ -78,7 +84,13 @@ def decode_jwt_token(app_code: str | None = None, user_id: str | None = None) ->
 
         _validate_webapp_token(decoded, app_web_auth_enabled, system_features.webapp_auth.enabled)
         _validate_user_accessibility(
-            decoded, app_code, app_web_auth_enabled, system_features.webapp_auth.enabled, webapp_settings
+            decoded,
+            app_code,
+            app_web_auth_enabled,
+            system_features.webapp_auth.enabled,
+            webapp_settings,
+            app_model=app_model,
+            end_user=end_user,
         )
 
         return app_model, end_user
@@ -118,6 +130,9 @@ def _validate_user_accessibility(
     app_web_auth_enabled: bool,
     system_webapp_auth_enabled: bool,
     webapp_settings: WebAppSettings | None,
+    *,
+    app_model: App,
+    end_user: EndUser,
 ):
     if system_webapp_auth_enabled and app_web_auth_enabled:
         # Check if the user is allowed to access the web app
@@ -136,18 +151,33 @@ def _validate_user_accessibility(
         auth_type = decoded.get("auth_type")
         granted_at = decoded.get("granted_at")
         if not auth_type:
-            raise WebAppAuthAccessDeniedError("Missing auth_type in the token.")
+            raise WebAppAuthRequiredError("Missing auth_type in the token.")
         if not granted_at:
-            raise WebAppAuthAccessDeniedError("Missing granted_at in the token.")
-        # check if sso has been updated
+            raise WebAppAuthRequiredError("Missing granted_at in the token.")
+        # check if sso has been updated — the user *was* granted access, but
+        # their token is now stale relative to the current SSO config. Surface
+        # as "re-auth required" (frontend: "权限已过期" page) rather than the
+        # generic "not authorised" page, because the user can self-recover
+        # by signing in again.
         if auth_type == "external":
             last_update_time = EnterpriseService.get_app_sso_settings_last_update_time()
             if granted_at and datetime.fromtimestamp(granted_at, tz=UTC) < last_update_time:
-                raise WebAppAuthAccessDeniedError("SSO settings have been updated. Please re-login.")
+                raise WebAppAuthRequiredError("SSO settings have been updated. Please re-login.")
         elif auth_type == "internal":
             last_update_time = EnterpriseService.get_workspace_sso_settings_last_update_time()
             if granted_at and datetime.fromtimestamp(granted_at, tz=UTC) < last_update_time:
-                raise WebAppAuthAccessDeniedError("SSO settings have been updated. Please re-login.")
+                raise WebAppAuthRequiredError("SSO settings have been updated. Please re-login.")
+
+    # Per-app explicit allowlist (independent of the enterprise webapp-auth flow above).
+    # Distinguishing EXPIRED from DENIED lets the webapp gate tell the user
+    # "your permission has expired, contact admin to renew" rather than the
+    # generic "you are not authorised" — the latter is wrong for users who
+    # *were* granted access and whose row just lapsed.
+    result = AppAccessPermissionService.check_access_with_reason(app=app_model, end_user=end_user)
+    if result == AccessCheckResult.EXPIRED:
+        raise WebAppPermissionExpiredError()
+    if result != AccessCheckResult.ALLOWED:
+        raise AppAccessPermissionDeniedError()
 
 
 class WebApiResource(Resource):

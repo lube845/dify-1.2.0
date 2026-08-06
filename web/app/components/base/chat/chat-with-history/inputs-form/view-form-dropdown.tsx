@@ -2,15 +2,38 @@ import { Popover, PopoverContent, PopoverTrigger } from '@langgenius/dify-ui/pop
 import {
   RiChatSettingsLine,
 } from '@remixicon/react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ActionButton, { ActionButtonState } from '@/app/components/base/action-button'
 import InputsFormContent from '@/app/components/base/chat/chat-with-history/inputs-form/content'
 import { Message3Fill } from '@/app/components/base/icons/src/public/other'
+import { InputVarType } from '@/app/components/workflow/types'
+import { useChatWithHistoryContext } from '../context'
+
+const isBooleanSelect = (form: any) => {
+  if (form?.type !== InputVarType.select)
+    return false
+  const options = form.options as string[] | undefined
+  if (!options || options.length !== 2)
+    return false
+  return (
+    (options.includes('true') && options.includes('false'))
+    || (options.includes('True') && options.includes('False'))
+  )
+}
 
 const ViewFormDropdown = () => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const { inputsForms } = useChatWithHistoryContext()
+
+  const hasNonBooleanForm = useMemo(
+    () => inputsForms.some(form => !isBooleanSelect(form)),
+    [inputsForms],
+  )
+
+  if (!hasNonBooleanForm)
+    return null
 
   return (
     <Popover

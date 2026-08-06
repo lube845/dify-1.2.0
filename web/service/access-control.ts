@@ -70,7 +70,7 @@ export const useUpdateAccessMode = () => {
   })
 }
 
-export const useGetUserCanAccessApp = ({ appId, isInstalledApp = true, enabled }: { appId?: string, isInstalledApp?: boolean, enabled?: boolean }) => {
+export const useGetUserCanAccessApp = ({ appId, isInstalledApp = true, enabled, silent = false }: { appId?: string, isInstalledApp?: boolean, enabled?: boolean, silent?: boolean }) => {
   // useQuery (not useSuspenseQuery) to keep this service hook's call contract
   // unchanged from the zustand era: callers should not need a Suspense boundary.
   // First-fetch undefined is bridged via `?? false` so the inner queryKey is stable.
@@ -80,7 +80,7 @@ export const useGetUserCanAccessApp = ({ appId, isInstalledApp = true, enabled }
     queryKey: [NAME_SPACE, 'user-can-access-app', appId, webappAuthEnabled, isInstalledApp],
     queryFn: () => {
       if (webappAuthEnabled)
-        return getUserCanAccess(appId!, isInstalledApp)
+        return getUserCanAccess(appId!, isInstalledApp, silent ? { silent: true } : undefined)
       else
         return { result: true }
     },

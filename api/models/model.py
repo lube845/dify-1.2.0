@@ -413,6 +413,9 @@ class App(Base):
     is_demo: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.text("false"))
     is_public: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.text("false"))
     is_universal: Mapped[bool] = mapped_column(sa.Boolean, server_default=sa.text("false"))
+    access_policy: Mapped[str] = mapped_column(
+        sa.String(32), nullable=False, server_default=sa.text("'allow_all'")
+    )
     tracing = mapped_column(LongText, nullable=True)
     max_active_requests: Mapped[int | None]
     created_by = mapped_column(StringUUID, nullable=True)
@@ -2028,6 +2031,7 @@ class EndUser(Base, UserMixin):
     type: Mapped[str] = mapped_column(String(255), nullable=False)
     external_user_id = mapped_column(String(255), nullable=True)
     name = mapped_column(String(255))
+    department = mapped_column(String(255), nullable=True)
     _is_anonymous: Mapped[bool] = mapped_column(
         "is_anonymous", sa.Boolean, nullable=False, server_default=sa.text("true")
     )
@@ -2041,6 +2045,36 @@ class EndUser(Base, UserMixin):
         self._is_anonymous = value
 
     session_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at = mapped_column(sa.DateTime, nullable=False, server_default=func.current_timestamp())
+    updated_at = mapped_column(
+        sa.DateTime, nullable=False, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
+    )
+
+
+class AppAccessPermission(Base):
+    """Per-(app, end_user) explicit access allowlist.
+
+    Used by ``AppAccessPermissionService`` to gate webapp chat access when the
+    owning app's ``access_policy`` is ``deny_all_explicit``. Each row grants
+    one end_user (identified by ``session_id``) access to one app for an
+    optional time window. ``user_id`` is an opaque string and need not point
+    at an existing ``end_users`` row.
+    """
+
+    __tablename__ = "app_access_permissions"
+    __table_args__ = (
+        sa.PrimaryKeyConstraint("id", name="app_access_permission_pkey"),
+        sa.UniqueConstraint("app_id", "user_id", name="unique_app_access_permission_app_user"),
+        sa.Index("app_access_permission_app_idx", "app_id"),
+    )
+
+    id: Mapped[str] = mapped_column(StringUUID, default=lambda: str(uuid4()))
+    app_id: Mapped[str] = mapped_column(StringUUID, nullable=False)
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Calendar date only — see controllers/console/permission.py docstring. No
+    # time component, no timezone: the picked day is the last day access is
+    # granted, regardless of the caller's local clock.
+    expires_at = mapped_column(sa.Date, nullable=True)
     created_at = mapped_column(sa.DateTime, nullable=False, server_default=func.current_timestamp())
     updated_at = mapped_column(
         sa.DateTime, nullable=False, server_default=func.current_timestamp(), onupdate=func.current_timestamp()

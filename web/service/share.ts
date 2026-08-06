@@ -106,8 +106,8 @@ export const stopWorkflowMessage = async (_appId: string, taskId: string, appSou
   return getAction('post', appSourceType)(getUrl(`workflows/tasks/${taskId}/stop`, appSourceType, installedAppId))
 }
 
-export const fetchAppInfo = async () => {
-  return get('/site') as Promise<AppData>
+export const fetchAppInfo = async (otherOptions?: IOtherOptions) => {
+  return get('/site', {}, otherOptions) as Promise<AppData>
 }
 
 export const fetchConversations = async (appSourceType: AppSourceType, installedAppId = '', last_id?: string, pinned?: boolean, limit?: number) => {
@@ -144,8 +144,8 @@ export const fetchChatList = async (conversationId: string, appSourceType: AppSo
 // }
 
 // init value. wait for server update
-export const fetchAppParams = async (appSourceType: AppSourceType, appId = '') => {
-  return (getAction('get', appSourceType))(getUrl('parameters', appSourceType, appId)) as Promise<ChatConfig>
+export const fetchAppParams = async (appSourceType: AppSourceType, appId = '', otherOptions?: IOtherOptions) => {
+  return (getAction('get', appSourceType))(getUrl('parameters', appSourceType, appId), {}, otherOptions) as Promise<ChatConfig>
 }
 
 export const fetchWebSAMLSSOUrl = async (appCode: string, redirectUrl: string) => {
@@ -204,8 +204,8 @@ export const fetchMembersOAuth2SSOUrl = async (appCode: string, redirectUrl: str
   }) as Promise<{ url: string }>
 }
 
-export const fetchAppMeta = async (appSourceType: AppSourceType, installedAppId = '') => {
-  return (getAction('get', appSourceType))(getUrl('meta', appSourceType, installedAppId)) as Promise<AppMeta>
+export const fetchAppMeta = async (appSourceType: AppSourceType, installedAppId = '', otherOptions?: IOtherOptions) => {
+  return (getAction('get', appSourceType))(getUrl('meta', appSourceType, installedAppId), {}, otherOptions) as Promise<AppMeta>
 }
 
 export const updateFeedback = async ({ url, body }: { url: string, body: FeedbackType }, appSourceType: AppSourceType, installedAppId = '') => {
@@ -259,11 +259,11 @@ export const fetchAccessToken = async ({ userId, appCode }: { userId?: string, a
   return get<{ access_token: string }>(url, { headers }) as Promise<{ access_token: string }>
 }
 
-export const getUserCanAccess = (appId: string, isInstalledApp: boolean) => {
+export const getUserCanAccess = (appId: string, isInstalledApp: boolean, otherOptions?: IOtherOptions) => {
   if (isInstalledApp)
-    return consoleGet<{ result: boolean }>(`/enterprise/webapp/permission?appId=${appId}`)
+    return consoleGet<{ result: boolean }>(`/enterprise/webapp/permission?appId=${appId}`, {}, otherOptions)
 
-  return get<{ result: boolean }>(`/webapp/permission?appId=${appId}`)
+  return get<{ result: boolean }>(`/webapp/permission?appId=${appId}`, {}, otherOptions)
 }
 
 export const getAppAccessModeByAppCode = (appCode: string) => {

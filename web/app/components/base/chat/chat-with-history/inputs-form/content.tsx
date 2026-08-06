@@ -11,6 +11,18 @@ import { CodeLanguage } from '@/app/components/workflow/nodes/code/types'
 import { InputVarType } from '@/app/components/workflow/types'
 import { useChatWithHistoryContext } from '../context'
 
+const isBooleanSelect = (form: any) => {
+  if (form?.type !== InputVarType.select)
+    return false
+  const options = form.options as string[] | undefined
+  if (!options || options.length !== 2)
+    return false
+  return (
+    (options.includes('true') && options.includes('false'))
+    || (options.includes('True') && options.includes('False'))
+  )
+}
+
 type Props = {
   showTip?: boolean
 }
@@ -40,7 +52,7 @@ const InputsFormContent = ({ showTip }: Props) => {
     })
   }, [newConversationInputsRef, handleNewConversationInputsChange, currentConversationInputs, setCurrentConversationInputs])
 
-  const visibleInputsForms = inputsForms.filter(form => form.hide !== true)
+  const visibleInputsForms = inputsForms.filter(form => form.hide !== true && !isBooleanSelect(form))
 
   return (
     <div className="space-y-4">

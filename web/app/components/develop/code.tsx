@@ -57,7 +57,7 @@ function CopyButton({ code }: { code: string }) {
       type="button"
       className={cn('group/button absolute top-1.5 right-4 overflow-hidden rounded-full py-1 pr-3 pl-2 text-2xs font-medium opacity-0 backdrop-blur-sm transition group-hover:opacity-100 focus:opacity-100', copied
         ? 'bg-emerald-400/10 ring-1 ring-emerald-400/20 ring-inset'
-        : 'bg-white/5 hover:bg-white/7.5 dark:bg-white/2.5 dark:hover:bg-white/5')}
+        : 'bg-white/5 hover:bg-white/10 dark:bg-white/5 dark:hover:bg-white/10')}
       onClick={() => {
         writeTextToClipboard(code).then(() => {
           setCopyCount(count => count + 1)
@@ -86,7 +86,7 @@ function CodePanelHeader({ tag, label }: { tag?: string, label?: string }) {
     return null
 
   return (
-    <div className="flex h-9 items-center gap-2 border-y border-t-transparent border-b-white/7.5 bg-white/2.5 bg-zinc-900 px-4 dark:border-b-white/5 dark:bg-white/1">
+    <div className="flex h-9 items-center gap-2 border-y border-t-transparent border-b-white/10 bg-white/5 bg-zinc-900 px-4 dark:border-b-white/10 dark:bg-white/5">
       {tag && (
         <div className="dark flex">
           <Tag variant="small">{tag}</Tag>
@@ -126,7 +126,7 @@ function CodePanel({ tag, label, children, targetCode }: ICodePanelProps) {
   const child = Children.toArray(children)[0] as ReactElement<any>
 
   return (
-    <div className="group dark:bg-white/2.5">
+    <div className="group dark:bg-white/5">
       <CodePanelHeader
         tag={tag}
         label={label}
@@ -159,7 +159,7 @@ function CodeGroupHeader({ title, tabs }: CodeGroupHeaderProps) {
   const hasTabs = (tabs?.length ?? 0) > 1
 
   return (
-    <div className="flex min-h-[calc(--spacing(12)+1px)] flex-wrap items-start gap-x-4 border-b border-zinc-700 bg-zinc-800 px-4 dark:border-zinc-800 dark:bg-transparent">
+    <div className="flex min-h-[49px] flex-wrap items-start gap-x-4 border-b border-zinc-700 bg-zinc-800 px-4 dark:border-zinc-800 dark:bg-transparent">
       {title && (
         <h3 className="mr-auto pt-3 text-xs font-semibold text-white">
           {title}

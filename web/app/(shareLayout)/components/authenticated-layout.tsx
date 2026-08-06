@@ -1,7 +1,8 @@
 'use client'
 
+import { toast } from '@langgenius/dify-ui/toast'
 import * as React from 'react'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import AppUnavailable from '@/app/components/base/app-unavailable'
 import Loading from '@/app/components/base/loading'
@@ -18,10 +19,14 @@ const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
   const updateAppParams = useWebAppStore(s => s.updateAppParams)
   const updateWebAppMeta = useWebAppStore(s => s.updateWebAppMeta)
   const updateUserCanAccessApp = useWebAppStore(s => s.updateUserCanAccessApp)
-  const { isFetching: isFetchingAppParams, data: appParams, error: appParamsError } = useGetWebAppParams()
-  const { isFetching: isFetchingAppInfo, data: appInfo, error: appInfoError } = useGetWebAppInfo()
-  const { isFetching: isFetchingAppMeta, data: appMeta, error: appMetaError } = useGetWebAppMeta()
-  const { data: userCanAccessApp, error: useCanAccessAppError } = useGetUserCanAccessApp({ appId: appInfo?.app_id, isInstalledApp: false })
+  // All four fetches have their errors surfaced as a page-level AppUnavailable
+  // (or the 403 "no permission" branch below). Suppress the global fetch hook
+  // toast for them so the user only sees ONE clear message, not a stack of
+  // per-query toasts.
+  const { isFetching: isFetchingAppParams, data: appParams, error: appParamsError } = useGetWebAppParams({ silent: true })
+  const { isFetching: isFetchingAppInfo, data: appInfo, error: appInfoError } = useGetWebAppInfo({ silent: true })
+  const { isFetching: isFetchingAppMeta, data: appMeta, error: appMetaError } = useGetWebAppMeta({ silent: true })
+  const { data: userCanAccessApp, error: useCanAccessAppError } = useGetUserCanAccessApp({ appId: appInfo?.app_id, isInstalledApp: false, silent: true })
 
   useEffect(() => {
     if (appInfo)
@@ -32,6 +37,20 @@ const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
       updateWebAppMeta(appMeta)
     updateUserCanAccessApp(Boolean(userCanAccessApp && userCanAccessApp?.result))
   }, [appInfo, appMeta, appParams, updateAppInfo, updateAppParams, updateUserCanAccessApp, updateWebAppMeta, userCanAccessApp])
+
+  // Show a single "no permission" toast when the permission check fails
+  // (either by 403/error, or by a 200 with result: false). A ref guard makes
+  // sure we only fire it once per access denial, even if the queries retry.
+  const noPermissionToastShownRef = useRef(false)
+  const hasNoPermission = Boolean(useCanAccessAppError) || (userCanAccessApp ? !userCanAccessApp.result : false)
+  useEffect(() => {
+    if (hasNoPermission && !noPermissionToastShownRef.current) {
+      noPermissionToastShownRef.current = true
+      toast.error(t('webapp.accessDenied', { ns: 'common' }))
+    }
+    if (!hasNoPermission)
+      noPermissionToastShownRef.current = false
+  }, [hasNoPermission, t])
 
   const router = useRouter()
   const pathname = usePathname()

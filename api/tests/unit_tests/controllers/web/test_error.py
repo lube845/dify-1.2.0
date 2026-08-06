@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from controllers.web.error import (
+    AppAccessPermissionDeniedError,
     AppMoreLikeThisDisabledError,
     AppSuggestedQuestionsAfterAnswerDisabledError,
     AppUnavailableError,
@@ -25,6 +26,7 @@ from controllers.web.error import (
     UnsupportedAudioTypeError,
     WebAppAuthAccessDeniedError,
     WebAppAuthRequiredError,
+    WebAppPermissionExpiredError,
     WebFormRateLimitExceededError,
 )
 
@@ -46,6 +48,8 @@ _ERROR_SPECS: list[tuple[type, str, int]] = [
     (ProviderNotSupportSpeechToTextError, "provider_not_support_speech_to_text", 400),
     (WebAppAuthRequiredError, "web_sso_auth_required", 401),
     (WebAppAuthAccessDeniedError, "web_app_access_denied", 401),
+    (WebAppPermissionExpiredError, "web_app_permission_expired", 401),
+    (AppAccessPermissionDeniedError, "app_access_permission_denied", 403),
     (InvokeRateLimitError, "rate_limit_error", 429),
     (WebFormRateLimitExceededError, "web_form_rate_limit_exceeded", 429),
     (NotFoundError, "not_found", 404),

@@ -19,7 +19,7 @@ from extensions.ext_database import db
 from extensions.ext_redis import redis_client
 from extensions.ext_storage import storage
 from graphon.model_runtime.entities.model_entities import ModelType
-from models.dataset import Dataset, Whitelist
+from models.dataset import Dataset
 from models.model import UploadFile
 
 logger = logging.getLogger(__name__)
@@ -125,14 +125,6 @@ class Vector:
 
         if self._dataset.index_struct_dict:
             vector_type = self._dataset.index_struct_dict["type"]
-        else:
-            if dify_config.VECTOR_STORE_WHITELIST_ENABLE:
-                stmt = select(Whitelist).where(
-                    Whitelist.tenant_id == self._dataset.tenant_id, Whitelist.category == "vector_db"
-                )
-                whitelist = db.session.scalars(stmt).one_or_none()
-                if whitelist:
-                    vector_type = VectorType.TIDB_ON_QDRANT
 
         if not vector_type:
             raise ValueError("Vector store must be specified.")

@@ -5,6 +5,7 @@ import { Buffer } from 'node:buffer'
 import { NextResponse } from 'next/server'
 import { env } from '@/env'
 
+const OA_SESSION_COOKIE = 'oa_session'
 const NECESSARY_DOMAIN = '*.sentry.io http://localhost:* http://127.0.0.1:* https://analytics.google.com googletagmanager.com *.googletagmanager.com https://www.google-analytics.com https://ungh.cc https://api2.amplitude.com *.amplitude.com'
 
 const wrapResponseWithXFrameOptions = (response: NextResponse, pathname: string) => {
@@ -17,6 +18,17 @@ const wrapResponseWithXFrameOptions = (response: NextResponse, pathname: string)
 }
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // Gate /chat/* routes behind OA login. Full verification happens server-side
+  // at GET /api/oa/me; here we only redirect visitors without an oa_session
+  // cookie to the login page.
+  if (pathname.startsWith('/chat/') && !request.cookies.get(OA_SESSION_COOKIE)) {
+    const redirectUrl = pathname + request.nextUrl.search
+    const loginUrl = new URL('/oa-login', request.url)
+    loginUrl.searchParams.set('redirect_url', redirectUrl)
+    return NextResponse.redirect(loginUrl)
+  }
+
   const requestHeaders = new Headers(request.headers)
 
   const isWhiteListEnabled = !!env.NEXT_PUBLIC_CSP_WHITELIST && process.env.NODE_ENV === 'production'

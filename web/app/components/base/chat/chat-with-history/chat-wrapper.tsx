@@ -54,7 +54,26 @@ const ChatWrapper = () => {
     setIsResponding,
     allInputsHidden,
     initUserVariables,
+    setCurrentConversationInputs,
+    handleNewConversationInputsChange,
   } = useChatWithHistoryContext()
+
+  const isBooleanSelect = useCallback((form: any) => {
+    if (form?.type !== InputVarType.select)
+      return false
+    const options = form.options as string[] | undefined
+    if (!options || options.length !== 2)
+      return false
+    return (
+      (options.includes('true') && options.includes('false'))
+      || (options.includes('True') && options.includes('False'))
+    )
+  }, [])
+
+  const hasNonBooleanForm = useMemo(
+    () => inputsForms.some(form => !isBooleanSelect(form)),
+    [inputsForms, isBooleanSelect],
+  )
 
   const appSourceType = isInstalledApp ? AppSourceType.installedApp : AppSourceType.webApp
 
@@ -200,6 +219,17 @@ const ChatWrapper = () => {
     doSend(editedQuestion ? editedQuestion.message : question.content, editedQuestion ? editedQuestion.files : question.message_files, true, isValidGeneratedAnswer(parentAnswer) ? parentAnswer : null)
   }, [chatList, doSend])
 
+  const handleInputsChange = useCallback((variable: string, value: any) => {
+    setCurrentConversationInputs({
+      ...currentConversationInputs,
+      [variable]: value,
+    })
+    handleNewConversationInputsChange({
+      ...newConversationInputsRef.current,
+      [variable]: value,
+    })
+  }, [currentConversationInputs, setCurrentConversationInputs, handleNewConversationInputsChange, newConversationInputsRef])
+
   const doSwitchSibling = useCallback((siblingMessageId: string) => {
     handleSwitchSibling(siblingMessageId, {
       onGetSuggestedQuestions: responseItemId => fetchSuggestedQuestions(responseItemId, appSourceType, appId),
@@ -225,7 +255,7 @@ const ChatWrapper = () => {
   const [collapsed, setCollapsed] = useState(!!currentConversationId)
 
   const chatNode = useMemo(() => {
-    if (allInputsHidden || !inputsForms.length)
+    if (allInputsHidden || !inputsForms.length || !hasNonBooleanForm)
       return null
     if (isMobile) {
       if (!currentConversationId)
@@ -237,6 +267,7 @@ const ChatWrapper = () => {
     }
   }, [
     inputsForms.length,
+    hasNonBooleanForm,
     isMobile,
     currentConversationId,
     collapsed,
@@ -251,7 +282,7 @@ const ChatWrapper = () => {
       return null
     if (!welcomeMessage)
       return null
-    if (!collapsed && inputsForms.length > 0 && !allInputsHidden)
+    if (!collapsed && hasNonBooleanForm && !allInputsHidden)
       return null
     if (welcomeMessage.suggestedQuestions && welcomeMessage.suggestedQuestions?.length > 0) {
       return (
@@ -296,7 +327,7 @@ const ChatWrapper = () => {
     chatList,
     collapsed,
     currentConversationId,
-    inputsForms.length,
+    hasNonBooleanForm,
     respondingState,
     allInputsHidden,
   ])
@@ -321,12 +352,13 @@ const ChatWrapper = () => {
         config={appConfig}
         chatList={messageList}
         isResponding={respondingState}
-        chatContainerInnerClassName={`mx-auto pt-6 w-full max-w-[768px] ${isMobile && 'px-4'}`}
+        chatContainerInnerClassName={`mx-auto pt-6 w-full max-w-[85%] ${isMobile && 'px-4'}`}
         chatFooterClassName="pb-4"
-        chatFooterInnerClassName={`mx-auto w-full max-w-[768px] ${isMobile ? 'px-2' : 'px-4'}`}
+        chatFooterInnerClassName={`mx-auto w-full max-w-[85%] ${isMobile ? 'px-2' : 'px-4'}`}
         onSend={doSend}
         inputs={currentConversationId ? currentConversationInputs as any : newConversationInputs}
         inputsForm={inputsForms}
+        onInputChange={handleInputsChange}
         onRegenerate={doRegenerate}
         onStopResponding={handleStop}
         onHumanInputFormSubmit={handleSubmitHumanInputForm}

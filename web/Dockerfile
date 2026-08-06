@@ -10,6 +10,7 @@ LABEL maintainer="takatost@gmail.com"
 
 RUN apk add --no-cache tzdata
 RUN corepack enable
+ENV COREPACK_REGISTRY=https://registry.npmmirror.com/
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 ARG NEXT_PUBLIC_BASE_PATH=""
@@ -31,7 +32,7 @@ COPY packages /app/packages
 RUN corepack install
 
 # Install workspace dependencies for the Docker build environment.
-RUN VITE_GIT_HOOKS=0 pnpm install --frozen-lockfile
+RUN VITE_GIT_HOOKS=0 pnpm install --frozen-lockfile --registry https://registry.npmmirror.com/
 
 # build resources
 FROM base AS builder

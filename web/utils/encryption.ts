@@ -44,3 +44,26 @@ export function encryptPassword(password: string): string {
 export function encryptVerificationCode(code: string): string {
   return encryptField(code)
 }
+
+function decryptField(encoded: string): string {
+  try {
+    const binary = atob(encoded)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++)
+      bytes[i] = binary.charCodeAt(i)
+    return new TextDecoder().decode(bytes)
+  }
+  catch (error) {
+    console.error('Field decoding failed:', error)
+    throw new Error('Decoding failed. Stored credential may be corrupted.')
+  }
+}
+
+/**
+ * Decrypt a password previously produced by {@link encryptPassword}.
+ * Used for restoring locally remembered credentials — still obfuscation,
+ * not real cryptography.
+ */
+export function decryptPassword(encoded: string): string {
+  return decryptField(encoded)
+}

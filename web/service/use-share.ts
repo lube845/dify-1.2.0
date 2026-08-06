@@ -65,29 +65,29 @@ export const useGetWebAppAccessModeByCode = (code: string | null) => {
   })
 }
 
-export const useGetWebAppInfo = () => {
+export const useGetWebAppInfo = (options: { silent?: boolean } = {}) => {
   return useQuery({
     queryKey: shareQueryKeys.appInfo,
     queryFn: () => {
-      return fetchAppInfo()
+      return fetchAppInfo(options.silent ? { silent: true } : undefined)
     },
   })
 }
 
-export const useGetWebAppParams = () => {
+export const useGetWebAppParams = (options: { silent?: boolean } = {}) => {
   return useQuery({
     queryKey: shareQueryKeys.appParams,
     queryFn: () => {
-      return fetchAppParams(AppSourceType.webApp)
+      return fetchAppParams(AppSourceType.webApp, '', options.silent ? { silent: true } : undefined)
     },
   })
 }
 
-export const useGetWebAppMeta = () => {
+export const useGetWebAppMeta = (options: { silent?: boolean } = {}) => {
   return useQuery({
     queryKey: shareQueryKeys.appMeta,
     queryFn: () => {
-      return fetchAppMeta(AppSourceType.webApp)
+      return fetchAppMeta(AppSourceType.webApp, '', options.silent ? { silent: true } : undefined)
     },
   })
 }

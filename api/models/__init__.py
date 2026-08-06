@@ -29,7 +29,6 @@ from .dataset import (
     ExternalKnowledgeApis,
     ExternalKnowledgeBindings,
     TidbAuthBinding,
-    Whitelist,
 )
 from .enums import (
     AppTriggerStatus,
@@ -208,7 +207,6 @@ __all__ = [
     "TriggerOAuthTenantClient",
     "TriggerSubscription",
     "UploadFile",
-    "Whitelist",
     "Workflow",
     "WorkflowAppLog",
     "WorkflowAppLogCreatedFrom",

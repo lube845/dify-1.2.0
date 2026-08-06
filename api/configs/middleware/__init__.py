@@ -153,7 +153,12 @@ class DatabaseConfig(BaseSettings):
     )
 
     DB_CHARSET: str = Field(
-        description="Character set for database connection.",
+        description=(
+            "Character set for database connection. "
+            "Used for PostgreSQL `client_encoding` and the pymysql `charset` connect arg. "
+            "Defaults to utf8mb4 for MySQL/OceanBase/SeekDB when empty, "
+            "since the historical pymysql default (latin1) corrupts non-ASCII data."
+        ),
         default="",
     )
 
@@ -251,6 +256,11 @@ class DatabaseConfig(BaseSettings):
                 merged_options = f"{merged_options} {timezone_opt}".strip() if merged_options else timezone_opt
             if merged_options:
                 connect_args = {"options": merged_options}
+        elif self.SQLALCHEMY_DATABASE_URI_SCHEME.startswith("mysql"):
+            # pymysql's historical default is latin1, which silently corrupts
+            # non-ASCII bytes (e.g. Chinese department names become `????`).
+            # Honor DB_CHARSET if explicitly set; otherwise force utf8mb4.
+            connect_args["charset"] = self.DB_CHARSET or "utf8mb4"
 
         result: SQLAlchemyEngineOptionsDict = {
             "pool_size": self.SQLALCHEMY_POOL_SIZE,

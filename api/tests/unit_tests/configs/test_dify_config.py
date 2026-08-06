@@ -221,6 +221,36 @@ def test_db_session_timezone_override_can_disable_app_level_timezone_injection(m
     }
 
 
+def test_mysql_engine_options_default_utf8mb4(monkeypatch: pytest.MonkeyPatch):
+    """MySQL connections must default to utf8mb4 to avoid pymysql's latin1 fallback
+    silently corrupting non-ASCII bytes (e.g. Chinese department names)."""
+    monkeypatch.setenv("DB_TYPE", "mysql")
+    monkeypatch.setenv("DB_USERNAME", "root")
+    monkeypatch.setenv("DB_PASSWORD", "root")
+    monkeypatch.setenv("DB_HOST", "localhost")
+    monkeypatch.setenv("DB_PORT", "3306")
+    monkeypatch.setenv("DB_DATABASE", "dify")
+
+    config = DifyConfig()
+
+    assert config.SQLALCHEMY_ENGINE_OPTIONS["connect_args"] == {"charset": "utf8mb4"}
+
+
+def test_mysql_engine_options_honors_db_charset(monkeypatch: pytest.MonkeyPatch):
+    """An explicit DB_CHARSET overrides the utf8mb4 default for MySQL."""
+    monkeypatch.setenv("DB_TYPE", "mysql")
+    monkeypatch.setenv("DB_USERNAME", "root")
+    monkeypatch.setenv("DB_PASSWORD", "root")
+    monkeypatch.setenv("DB_HOST", "localhost")
+    monkeypatch.setenv("DB_PORT", "3306")
+    monkeypatch.setenv("DB_DATABASE", "dify")
+    monkeypatch.setenv("DB_CHARSET", "utf8mb4_unicode_ci")
+
+    config = DifyConfig()
+
+    assert config.SQLALCHEMY_ENGINE_OPTIONS["connect_args"]["charset"] == "utf8mb4_unicode_ci"
+
+
 def test_pubsub_redis_url_default(monkeypatch: pytest.MonkeyPatch):
     os.environ.clear()
 

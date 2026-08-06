@@ -252,3 +252,5 @@ scripts/stress-test/reports/
 .qoder/*
 .context/*
 .eslintcache
+
+docker/docker-images/
